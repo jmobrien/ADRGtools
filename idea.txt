@@ -1,0 +1,10 @@
+# New function:
+
+# qualtricsprep
+#' reads in file,
+#' preps the data based on the variable name
+#' variable class
+#' range
+#' reverse coding
+#' checks for outliers
+#' prints summary statistics

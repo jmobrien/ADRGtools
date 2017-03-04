@@ -1,33 +1,22 @@
 
-#' Title
-#'
-#' @param outcomes
-#' @param treatment
-#' @param cov.list
-#' @param no.cov.exclude
-#' @param dat
-#' @param mod.type
-#' @param mod.family
-#' @param critical.value
-#' @param cat.percent
-#' @param permutations
-#'
-#' @return
-#' @export
-#'
-#' @examples
-p.curve <-
+# Specification Curve Maker function --------------------------------------
+
+s.curve <-
   function(
-    #This function outputs the
-    #TODO: make work with subsetting, possibly include NSE
+    #This function outputs a list of
+    #TODO: make work with subsetting, possibly include nonstandard eval to make it easier to
+    #      use interactively
     outcomes, # vector of outcome variables
     treatment, # vector of treatment variables
     cov.list, # named list, sets of covariates / moderators - write moderators as "var1:var2"
-    no.cov.exclude = NULL, # of the names in list, should the 'no covariate' case be excluded
+              # eg: cov.list = list(gender = c("gender.roster", "gender.selfreport"),
+
+    no.cov.exclude = NULL, # Will add a model where each item of the list above is missing,
+                           # unless specified here
     dat, # datafile
 
-    mod.type = lm, #takes lm, glm (NOT YET FULLY IMPLEMENTED)
-    mod.family = NULL, # if family needed (NOT IMPLEMENTED)
+    mod.type = lm, #takes lm, glm (NOT YET IMPLEMENTED)
+    mod.family = NULL, # if family needed (NOT YET IMPLEMENTED)
     critical.value = .05,
     cat.percent = TRUE, # displays summary output of % significant at the end of the data for convenience in interactive mode. Set to false if using as a part of an Rmarkdown file.
     permutations = NULL # number of permutations for p-curve
@@ -375,15 +364,18 @@ p.curve <-
   }
 
 
+# Plotting tool -----------------------------------------------------------
 
-pcurvePlot <-
+
+
+s.curve.plot <-
   function(
     data,
     title = NULL,
     plot.order = NULL,
     decreasing = TRUE
     ){
-    require(ggplot2)
+
     # Sort by the provided metric:
     if(!is.null(plot.order)){
       new.order <- order(data$results[plot.order], decreasing = decreasing)
@@ -393,25 +385,52 @@ pcurvePlot <-
     }
 
     # plot
-    ggplot(plot.dat,
-           aes(x=seq_along(estimate),
-           y=estimate)) +
+    newplot <-
+      ggplot(plot.dat,
+             aes(x=seq_along(estimate),
+                 y=estimate)) +
       geom_point(aes(color=significant)) +
       scale_color_manual(
         values = c("black", "red"),
         name = paste0("Significant\nat p = ", data$critical.value)
       ) +
-      geom_line(aes(y=perm.lower, linetype = "95 % CI")) +
-      geom_line(aes(y=perm.upper, linetype = "95 % CI")) +
-      geom_line(aes(y=perm.median, linetype = "Median")) +
-      scale_linetype_manual(
-        name = "Permutation\nTest",
-        values = c("Median" = "solid", "95 % CI" = "dotted")
-      ) +
       theme_bw() +
       ylab(plot.order) +
       xlab(paste0("Specification # (sorted by ", plot.order, ")")) +
       ggtitle(title)
+    if (!is.null(data$permutations)){
+      newplot <-
+        newplot +
+        geom_line(aes(y=perm.lower, linetype = "95 % CI")) +
+        geom_line(aes(y=perm.upper, linetype = "95 % CI")) +
+        geom_line(aes(y=perm.median, linetype = "Median")) +
+        scale_linetype_manual(
+          name = "Permutation\nTest",
+          values = c("Median" = "solid", "95 % CI" = "dotted")
+        )}
+    newplot
+  }
 
+
+
+# Tablemaking function -------------------------------------------------------
+
+
+s.curve.table <- function(scurve, ordering = "estimate"){
+
+  table.displaylist <-
+    if(is.null(scurve$permutations)){
+      c("formulas", "estimate", "std.error", "p.value")
+    } else {
+      c("formulas", "estimate", "std.error", "p.value",
+        "perm.lower", "perm.median", "perm.upper")
+    }
+  s.table <- data.frame(model = 1:scurve$n.formulas)
+  s.table[table.displaylist] <-
+    scurve$results[
+      order(scurve$results[[ordering]], decreasing = TRUE),
+      table.displaylist
+      ]
+
+  s.table
 }
-```

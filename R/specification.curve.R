@@ -92,8 +92,7 @@ s.curve <-
         as.formula)
 
     # Converts formula names to character vector:
-    formula.names <- sapply(formulas, deparse)
-    # Length of specification list:
+    formula.names <- sapply(formulas, deparse, width.cutoff = 500)    # Length of specification list:
     n.formulas <- length(formulas)
 
     # Function for running models ----

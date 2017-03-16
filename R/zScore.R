@@ -1,0 +1,1 @@
+zScore  <- function(x){as.numeric(scale(x))}

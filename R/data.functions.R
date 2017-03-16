@@ -1,7 +1,7 @@
 read.qualtrics <-
   function(
     file,
-    stringsAsFactors = FALSE,
+    stringsAsFactors = FALSE
     ){
     header.dat <- read.csv(file, stringsAsFactors = stringsAsFactors)
     main.dat <- read.csv(file, skip=3, header = FALSE, stringsAsFactors = stringsAsFactors)

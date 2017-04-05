@@ -28,7 +28,6 @@ s.curve <-
     # Library calls ----
     require(broom)
     require(ggplot2)
-    if(mod.type == lmer){require(lmerTest)}
 
     # Initialize output list ----
     output <- list()
@@ -86,10 +85,7 @@ s.curve <-
         "NOTE: set includes one or more null models."
       )}
     
-    if( mod.type == lmer ) {
-      paste0(formulas.rhs, "(1 | ", grouping, ")")
-      }
-      
+   
 
 
     # Adds left-hand side (outcomes), make formulas:
@@ -117,18 +113,7 @@ s.curve <-
             FUN <- match.fun(mod.type)
             FUN(forms, data=f.data, family=mod.family)
           })
-        
-        if (mod.type == lmer){
-          models.tidy <-
-            lapply(model.runs, function(mod){
-              sumry <- summary(mod)$coefficients
-              sumry.names <- rownames(sumry)
-              sumry <- as.data.frame(cbind(sumry.names, sumry))
-              names(sumry) <- c("term", "estimate", "std.error", "df", "statistic", "p.value")
-              sumry
-            })
-              
-        } else {
+        f
           
         # Gets tidied output (data frame) for concatenation:
         models.tidy <-

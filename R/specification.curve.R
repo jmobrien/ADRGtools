@@ -15,8 +15,10 @@ s.curve <-
                            # unless specified here
     dat, # datafile
 
-    mod.type = lm, #takes lm, glm (NOT YET IMPLEMENTED)
-    mod.family = NULL, # if family needed (NOT YET IMPLEMENTED)
+    mod.type = lm, #takes lm, glm 
+    grouping = NULL,
+    r.effects = "intercepts",
+    mod.family = NULL, # if family needed for glm
     critical.value = .05,
     cat.percent = TRUE, # displays summary output of % significant at the end of the data for convenience in interactive mode. Set to false if using as a part of an Rmarkdown file.
     permutations = NULL # number of permutations for p-curve
@@ -26,6 +28,7 @@ s.curve <-
     # Library calls ----
     require(broom)
     require(ggplot2)
+    if(mod.type == lmer){require(lmerTest)}
 
     # Initialize output list ----
     output <- list()
@@ -81,7 +84,12 @@ s.curve <-
     if( any(formulas.rhs == "") ) {
       warning(
         "NOTE: set includes one or more null models."
-        )}
+      )}
+    
+    if( mod.type == lmer ) {
+      paste0(formulas.rhs, "(1 | ", grouping, ")")
+      }
+      
 
 
     # Adds left-hand side (outcomes), make formulas:
@@ -107,15 +115,27 @@ s.curve <-
         model.runs <-
           lapply(formulas, function(forms){
             FUN <- match.fun(mod.type)
-            FUN(forms, data=f.data)
+            FUN(forms, data=f.data, family=mod.family)
           })
-
-
-
+        
+        if (mod.type == lmer){
+          models.tidy <-
+            lapply(model.runs, function(mod){
+              sumry <- summary(mod)$coefficients
+              sumry.names <- rownames(sumry)
+              sumry <- as.data.frame(cbind(sumry.names, sumry))
+              names(sumry) <- c("term", "estimate", "std.error", "df", "statistic", "p.value")
+              sumry
+            })
+              
+        } else {
+          
         # Gets tidied output (data frame) for concatenation:
         models.tidy <-
           lapply(model.runs, tidy)
-
+        
+        }
+        
         # Set names:
         names(model.runs) <- formula.names
         names(models.tidy) <- formula.names

@@ -15,10 +15,8 @@ s.curve <-
                            # unless specified here
     dat, # datafile
 
-    mod.type = lm, #takes lm, glm 
-    grouping = NULL,
-    r.effects = "intercepts",
-    mod.family = NULL, # if family needed for glm
+    mod.type = lm, #takes lm, glm (NOT YET IMPLEMENTED)
+    mod.family = NULL, # if family needed (NOT YET IMPLEMENTED)
     critical.value = .05,
     cat.percent = TRUE, # displays summary output of % significant at the end of the data for convenience in interactive mode. Set to false if using as a part of an Rmarkdown file.
     permutations = NULL # number of permutations for p-curve
@@ -83,9 +81,7 @@ s.curve <-
     if( any(formulas.rhs == "") ) {
       warning(
         "NOTE: set includes one or more null models."
-      )}
-    
-   
+        )}
 
 
     # Adds left-hand side (outcomes), make formulas:
@@ -111,16 +107,15 @@ s.curve <-
         model.runs <-
           lapply(formulas, function(forms){
             FUN <- match.fun(mod.type)
-            FUN(forms, data=f.data, family=mod.family)
+            FUN(forms, data=f.data)
           })
-        f
-          
+
+
+
         # Gets tidied output (data frame) for concatenation:
         models.tidy <-
           lapply(model.runs, tidy)
-        
-        }
-        
+
         # Set names:
         names(model.runs) <- formula.names
         names(models.tidy) <- formula.names

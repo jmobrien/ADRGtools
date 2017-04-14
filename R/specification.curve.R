@@ -1,4 +1,19 @@
 
+# linear model clustering function ----------------------------------------
+
+cl   <- function(dat,fm, cluster){
+           require(sandwich, quietly = TRUE)
+           require(lmtest, quietly = TRUE)
+           M <- length(unique(cluster))
+           N <- length(cluster)
+           K <- fm$rank
+           dfc <- (M/(M-1))*((N-1)/(N-K))
+           uj  <- apply(estfun(fm),2, function(x) tapply(x, cluster, sum));
+           vcovCL <- dfc*sandwich(fm, meat=crossprod(uj)/N)
+           coeftest(fm, vcovCL) }
+
+
+
 # Specification Curve Maker function --------------------------------------
 
 s.curve <-
@@ -19,8 +34,9 @@ s.curve <-
     mod.family = NULL, # if family needed (NOT YET IMPLEMENTED)
     critical.value = .05,
     cat.percent = TRUE, # displays summary output of % significant at the end of the data for convenience in interactive mode. Set to false if using as a part of an Rmarkdown file.
-    permutations = NULL # number of permutations for p-curve
-
+    permutations = NULL, # number of permutations for p-curve
+    cluster = FALSE,
+    cluster.var = NULL
     ) {
 
     # Library calls ----
@@ -109,6 +125,13 @@ s.curve <-
             FUN <- match.fun(mod.type)
             FUN(forms, data=f.data)
           })
+        
+        if(cluster) {
+          model.runs <-
+            lapply(model.runs, function(mods.tocluster){
+            cl(dat = f.data, fm = mods.tocluster, cluster = f.data[[cluster.var]])
+            })
+        }
 
 
 

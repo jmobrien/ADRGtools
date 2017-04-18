@@ -127,18 +127,19 @@ s.curve <-
           })
         
         if(cluster) {
-          model.runs <-
+          model.runs.cluster <-
             lapply(model.runs, function(mods.tocluster){
             cl(dat = f.data, fm = mods.tocluster, cluster = f.data[[cluster.var]])
             })
-        }
-
-
-
+          
+          models.tidy <-
+          lapply(model.runs.cluster, tidy)
+        } else {
         # Gets tidied output (data frame) for concatenation:
         models.tidy <-
           lapply(model.runs, tidy)
-
+        }
+        
         # Set names:
         names(model.runs) <- formula.names
         names(models.tidy) <- formula.names

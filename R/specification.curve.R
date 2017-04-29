@@ -1,6 +1,6 @@
 
 # linear model clustering function ----------------------------------------
-
+# Included for use so that the specification curve can cluster standard errors if needed
 cl   <- function(dat,fm, cluster){
            require(sandwich, quietly = TRUE)
            require(lmtest, quietly = TRUE)

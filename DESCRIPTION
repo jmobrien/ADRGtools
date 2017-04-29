@@ -1,11 +1,13 @@
-Package: ADRGtools
+Package: ADRGmisc
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Various Useful ADRG Functions
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
-License: What license is it under?
+Author: Joseph O'Brien, and eventually others
+Maintainer: Joseph O'Brien <joseph.obrien@utexas.edu>
+Description: We are collecting various functions that people write,
+    or that were in the markdown styleguide, so that we don't have to
+    copy and paste them in everything we write.  All users should feel free to add
+    useful things as they are created, or editing things to add features, whatever.
+License: GPL = 2.0, I guess
 Encoding: UTF-8
 LazyData: true

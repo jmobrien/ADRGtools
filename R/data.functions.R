@@ -28,7 +28,7 @@ makevar <-
   ) {
     # Function that can handle reverse coded items when making composites
     # Data frame for making means:
-    ourdat <- data[c(vars, rev.vars)]
+    ourdat <- data[vars]
     
     # Reverse coding if necessary:
     if(!is.null(rev.vars)){

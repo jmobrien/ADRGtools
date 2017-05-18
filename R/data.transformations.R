@@ -6,9 +6,11 @@ zScore  <- function(x){
 
 
 #function for making the range of a function 0 to 1 while maintaining scaling
-range0to1 <- function(x){
+range0to1 <- function(x, min=NULL, max=NULL){
   #function for making the range of a function 0 to 1 while maintaining scaling
-  (x-min(x, na.rm=T))/(max(x, na.rm=T)-min(x, na.rm=T))
+  if(!is.null(min){min <- min(x, na.rm=T)}
+  if(!is.null(max){max <- max(x, na.rm=T)}
+  (x-min)/(max-min)
 }  
 
 # Function for reverse coding

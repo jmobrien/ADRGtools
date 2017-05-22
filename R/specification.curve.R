@@ -171,8 +171,8 @@ s.curve <-
           models.df$p.value <= critical.value
 
         # ADD RESULTS FOR EACH COVARIATE SET:
-        # (does each *GROUP* of covariates as a unit, not each
-        # possible covariate)
+        # (pulls out estimates for the specific covariate in the
+        # covariate class as named:)
         # Estimate:
         models.df[paste0(names(cov.list), ".est")] <-
           lapply(names(cov.list), function(x){

@@ -74,3 +74,28 @@ merge.with.order <- function(x,y, ..., sort = T, keep_order){
     warning("The function merge.with.order only accepts NULL/1/2 values for the keep_order variable")
   } else {return(merge(x=x,y=y,..., sort = sort))}
 }
+
+# This function calculates empirical Bayesian means in a way that eliminates the 
+# need for a multistep process in code:
+
+EBmeans <- function(data, variable, grouping){
+  # Run model:
+  require(lme4)
+  mod <- eval(substitute(lmer(variable ~ (1 | grouping), data)))
+  # Extract coefficients:
+  coefs <- data.frame(
+    grouping = rownames(coef(mod)[[1]]),
+    coefs = coef(mod)[[1]]$`(Intercept)`,
+    stringsAsFactors = FALSE
+  )
+  # Mix it in with the data:
+  coefs.full <- merge(
+    data.frame(
+      index = 1:nrow(data),
+      grouping = eval(substitute(data$grouping)), stringsAsFactors = FALSE),
+    coefs,
+    all.x = TRUE
+  )
+  #Output the EB mean values:
+  coefs.full[["coefs"]][order(coefs.full["index"])]
+}

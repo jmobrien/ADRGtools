@@ -24,8 +24,15 @@ makevar <-
     vars, # Non-reverse coded variables (vector in quotes)
     rev.vars = NULL, #Reverse coded variables (vector in quotes)
     rev.max = NULL, # Maximum value of scale (used for reverse coding)
-    rev.min = 1 #minimum amount of scale (used for reverse coding, assumed 1)
+    rev.min = 1, #minimum amount of scale (used for reverse coding, assumed 1)
+    adjust = NULL, # numeric adjustment (will be added to each variable)
+    type = "mean" # mean or sum
   ) {
+    
+    if(!type %in% c("mean", "sum", "MEAN", "SUM", "Mean", "Sum")){
+      stop("type must be 'mean' or 'sum'")
+    }
+    
     # Function that can handle reverse coded items when making composites
     # Data frame for making means:
     ourdat <- data[vars]
@@ -36,13 +43,31 @@ makevar <-
       ourdat[rev.vars] <-
         lapply(data[rev.vars],
                function(rvar){
-                 rev.max-rvar+rev.min
+                 rev.max - rvar + rev.min
                })
       
     }
     
-    rowMeans(ourdat, na.rm=TRUE)
-  } 
+    # Adjustments as necessary
+    if(!is.null(adjust)){
+      ourdat <- ourdat + adjust
+    }
+  
+      
+  if(type %in% c("mean", "Mean", "MEAN")){  
+    #Calculate the mean composite index
+    out <- 
+     rowMeans(ourdat, na.rm=TRUE)
+  } else { 
+   out <- 
+     # Does sums, giving NA for cases missing on all data:
+     ifelse(apply(ourdat, 1, function(x){all(is.na(x))}),
+     NA,
+     rowSums(ourdat, na.rm=T)
+     )
+  }
+  }
+    
 
 
 merge.with.order <- function(x,y, ..., sort = T, keep_order){

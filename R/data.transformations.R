@@ -21,16 +21,27 @@ revCode <- function(x, max_x=NULL, min_x=NULL){
   max_x + min_x - x}
 
 
-OutRemove <- function(x){
-# Outlier Removal
-# For all values that are ≥ 3sd than the mean (post-transformation in that case) recode values to the second highest amount:
-  recode <- which(x >=  (mean(x) + 3*sd(x)))
-  x2 <- x
-  if(length(recode) != 0L) {x2[recode] <- max(x[-recode])}
-  x2
-}
+OutRemove <- 
+  function(
+    x, # variable to trim
+    direction = "both", # Direction for one-tailed test
+    dev.cutoff = 3 # cutoff in standard deviation units
+    ){
+    # Outlier Removal
+    # recode values to the first non-outlier value:
+    if(!direction %in% c("upper", "Upper", "UPPER", "lower", "Lower", "LOWER", "both", "Both", "BOTH"))
+      stop("Direction should be 'upper' (positive outliers), 'lower' (negative outliers) or 'both' (two-tailed)") 
 
- 
+    dev <- (x - mean(x, na.rm=T)) / sd(x, na.rm=T)
+    x2 <- x
+    # Recode lower tail
+    if(direction %in% c("both", "Both", "BOTH", "lower", "Lower", "LOWER"))
+      x2[dev < -dev.cutoff] <- min(x[dev >= -dev.cutoff], na.rm=T)
+    # Recode upper tail
+    if(direction %in% c("both", "Both", "BOTH", "upper", "Upper", "UPPER"))
+      x2[dev > dev.cutoff] <- max(x[dev <= dev.cutoff], na.rm=T)
+    x2
+  }
 
 
 

@@ -100,10 +100,10 @@ merge.with.order <- function(x,y, ..., sort = T, keep_order){
   } else {return(merge(x=x,y=y,..., sort = sort))}
 }
 
-# This function calculates empirical Bayesian means in a way that eliminates the 
-# need for a multistep process in code:
 
 EBmeans <- function(data, variable, grouping){
+  # This function calculates empirical Bayesian means in a way that eliminates the 
+  # need for a multistep process in code:
   # Run model:
   require(lme4)
   mod <- eval(substitute(lmer(variable ~ (1 | grouping), data)))
@@ -124,3 +124,15 @@ EBmeans <- function(data, variable, grouping){
   #Output the EB mean values:
   coefs.full[["coefs"]][order(coefs.full["index"])]
 }
+
+ControlFor <-function(
+  dat, # dataframe, not in quotes
+  outcome, # outcome variable, in quotes
+  ... # list of variables, comma separated, in quotes
+  ){
+  # will create a variable that is controlled for any number of other variables.
+  cvars <- unlist(list(...))
+  form <- as.formula(paste0(outcome, " ~ ", paste0(cvars, collapse = " + ")))
+  resid(lm(form, dat, na.action="na.exclude"))
+}
+

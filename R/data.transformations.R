@@ -59,25 +59,45 @@ groupcenter <-
     dat - g.mean
   }
 
-# Make L1 and L2 variables and standardize (NOT done yet)
+ZandTrim <- 
+  function(
+    dat, # a dataframe
+    vars, # a vector of variables, in quotes
+    direction = "both", # Direction for one-tailed test
+    dev.cutoff = 3 # cutoff in standard deviation units
+  ) {
+    # convenience function, 
+    # trims all variables in named vector (defaults to both tails, 3sd cutoff,
+    # does z-scoring of the variables trimmed and untrimmed,
+    # outputs the final product as a new dataframe including the added items.
+    
+    # create new variable names:
+    vars.z <- paste0(vars, ".z")
+    vars.trim <- paste0(vars, ".trim")
+    vars.trim.z <- paste0(vars.trim, ".z")
 
-# make.multilevel.vars <- 
-#   function(dat, groupvar, vars){
-#     
-#     # Make formulae
-#     formulae <- 
-#       lapply(vars, function(x){
-#      as.formula(paste0(x, " ~ 1 + (1 |", groupvar, ")"))
-#       }
-#     
-#     # Get coefficients
-#     coefs <- 
-#     lapply(formulae, function(x){
-#       data.framecoef(lmer(x, dat))}
-#     
-#            
-#     lengths <- lapply(coefs, function(x){length(x[[groupvar]]$`(Intercept)`)} 
-#     
-#     as.vector(
-#       lapply(
-#         coefs, 
+    # add to data frame:
+    dat[vars.z] <- 
+      lapply(dat[vars], zScore)
+    dat[vars.trim] <- 
+      lapply(dat[vars], OutRemove, direction=direction, dev.cutoff=dev.cutoff)
+    dat[vars.trim.z] <- 
+      lapply(dat[vars.z], OutRemove, direction=direction, dev.cutoff=dev.cutoff)
+ 
+    # Check for outlier status, delete variables that don't have outliers:
+    trimtest <- 
+      vapply(seq_along(vars), function(i){
+        all(dat[vars[i]] == dat[vars.trim[i]], na.rm=T)
+    }, FUN.VALUE = T)
+    dat[vars.trim[trimtest]] <- NULL
+    dat[vars.trim.z[trimtest]] <- NULL
+    
+    if(any(trimtest)) {
+      warning(
+        paste0("Variables ", paste(vars[trimtest], collapse = ", "), " have no outliers; no trimmed equivalents will be created for them.")
+      )}
+    
+    # return the new dataframe:
+    dat
+    
+  }  

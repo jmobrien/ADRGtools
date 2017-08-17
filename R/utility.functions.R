@@ -34,6 +34,5 @@ nameslike <- function(data, regexp){
 
 
 # %!in% - a convenience function for "not in" 
-# This does no
 `%!in%` <- Negate("%in%")
 

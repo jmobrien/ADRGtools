@@ -59,6 +59,7 @@ groupcenter <-
     dat - g.mean
   }
 
+
 ZandTrim <- 
   function(
     dat, # a dataframe
@@ -66,7 +67,7 @@ ZandTrim <-
     direction = "both", # Direction for one-tailed test
     dev.cutoff = 3 # cutoff in standard deviation units
   ) {
-    # convenience function, 
+    # convenience function - 
     # trims all variables in named vector (defaults to both tails, 3sd cutoff,
     # does z-scoring of the variables trimmed and untrimmed,
     # outputs the final product as a new dataframe including the added items.

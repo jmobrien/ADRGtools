@@ -7,6 +7,9 @@ SRETextract <- function(dat,
 ){
   # This function should be written back to the full data that you have, like:
   # mydata <- SRETextract(mydata)
+  # It will add several variables that relate to number and percent of responses
+  # of positive and negative words, along with some checks of # of words seen for
+  # diagnostics.
   
   require(stringr)
   

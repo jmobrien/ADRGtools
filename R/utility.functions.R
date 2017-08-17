@@ -13,7 +13,7 @@ construct.all <- function(...){
   # combinations of a set of characteristics. For instance,
   # construct.all(c("algebra.", "calculus.", "geometry"), 1:4, "_", letters[1:4])
   # would make a vector 3x4x1x4 of format "[mathtype].[1-4]_[a-d]."  Useful when
-  # pulling in different classes of similarly named variables.
+  # constructing a list of various categories of similarly named variables.
   vals <- 
     apply(
       expand.grid(..., stringsAsFactors = FALSE),
@@ -33,5 +33,7 @@ nameslike <- function(data, regexp){
 }
 
 
-# a function for "not in" - doesn't load from the package yet, but you can copy/paste it.
-"%!in%" <- Negate("%in%")
+# %!in% - a convenience function for "not in" 
+# This does no
+`%!in%` <- Negate("%in%")
+

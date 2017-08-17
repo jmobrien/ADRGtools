@@ -1,19 +1,5 @@
-# This reads the native output of qualtrics without having to pre-clean the extra lines at the top
-# And it takes the data from those removed lines (info about the prompt text), and puts them into an attribute.
-read.qualtrics <-
-  function(
-    file,
-    stringsAsFactors = FALSE
-    ){
-    header.dat <- read.csv(file, stringsAsFactors = stringsAsFactors)
-    main.dat <- read.csv(file, skip=3, header = FALSE, stringsAsFactors = stringsAsFactors)
-    names(main.dat) <- names(header.dat)
-    content <- as.character(header.dat[1,])
-    for(i in 1:length(main.dat)) {
-      attr(main.dat[[i]], "prompt") <- content[i]
-    }
-    main.dat
-  }
+
+# makevar - tool for quick compositing w/reverse coding & adjustme --------
 
 
 
@@ -28,12 +14,14 @@ makevar <-
     adjust = NULL, # numeric adjustment (will be added to each variable)
     type = "mean" # mean or sum
   ) {
-    
+    # Function that can quickly consruct composites, handling reverse
+    # coding as needed, and can provide overall up/down adjustment (for example,
+    # a clinical scale measured on 1-3 that is supposed to be scored 0-2.
+
     if(!type %in% c("mean", "sum", "MEAN", "SUM", "Mean", "Sum")){
       stop("type must be 'mean' or 'sum'")
     }
     
-    # Function that can handle reverse coded items when making composites
     # Data frame for making means:
     ourdat <- data[vars]
     
@@ -70,44 +58,59 @@ makevar <-
     
 
 
-merge.with.order <- function(x,y, ..., sort = T, keep_order){
-  # this function works just like merge, only that it adds the option to return the merged data.frame ordered by x (1) or by y (2)
-  # From https://www.r-statistics.com/2012/01/merging-two-data-frame-objects-while-preserving-the-rows-order/
-  add.id.column.to.data <- function(DATA)
-  {
-    data.frame(DATA, id... = seq_len(nrow(DATA)))
-  }
-  # add.id.column.to.data(data.frame(x = rnorm(5), x2 = rnorm(5)))
-  order.by.id...and.remove.it <- function(DATA)
-  {
-    # gets in a data.frame with the "id..." column.  Orders by it and returns it
-    if(!any(colnames(DATA)=="id...")) stop("The function order.by.id...and.remove.it only works with data.frame objects which includes the 'id...' order column")
+# merge.with.order - row-order-preserving merge tool ----------------------
+
+
+
+merge.with.order <- 
+  function(x,y, ..., sort = T, keep_order){
+    # this function works just like merge, only that it adds the option to return
+    # the merged data.frame ordered by x (1) or by y (2) From
+    # https://www.r-statistics.com/2012/01/merging-two-data-frame-objects-while-preserving-the-rows-order/
+    add.id.column.to.data <- function(DATA)
+    {
+      data.frame(DATA, id... = seq_len(nrow(DATA)))
+    }
+    # add.id.column.to.data(data.frame(x = rnorm(5), x2 = rnorm(5)))
+    order.by.id...and.remove.it <- function(DATA)
+    {
+      # gets in a data.frame with the "id..." column.  Orders by it and returns it
+      if(!any(colnames(DATA)=="id...")) stop("The function order.by.id...and.remove.it only works with data.frame objects which includes the 'id...' order column")
+      
+      ss_r <- order(DATA$id...)
+      ss_c <- colnames(DATA) != "id..."
+      DATA[ss_r, ss_c]
+    }
     
-    ss_r <- order(DATA$id...)
-    ss_c <- colnames(DATA) != "id..."
-    DATA[ss_r, ss_c]
+    # tmp <- function(x) x==1; 1	# why we must check what to do if it is missing or not...
+    # tmp()
+    
+    if(!missing(keep_order))
+    {
+      if(keep_order == 1) return(order.by.id...and.remove.it(merge(x=add.id.column.to.data(x),y=y,..., sort = FALSE)))
+      if(keep_order == 2) return(order.by.id...and.remove.it(merge(x=x,y=add.id.column.to.data(y),..., sort = FALSE)))
+      # if you didn't get "return" by now - issue a warning.
+      warning("The function merge.with.order only accepts NULL/1/2 values for the keep_order variable")
+    } else {return(merge(x=x,y=y,..., sort = sort))}
   }
-  
-  # tmp <- function(x) x==1; 1	# why we must check what to do if it is missing or not...
-  # tmp()
-  
-  if(!missing(keep_order))
-  {
-    if(keep_order == 1) return(order.by.id...and.remove.it(merge(x=add.id.column.to.data(x),y=y,..., sort = FALSE)))
-    if(keep_order == 2) return(order.by.id...and.remove.it(merge(x=x,y=add.id.column.to.data(y),..., sort = FALSE)))
-    # if you didn't get "return" by now - issue a warning.
-    warning("The function merge.with.order only accepts NULL/1/2 values for the keep_order variable")
-  } else {return(merge(x=x,y=y,..., sort = sort))}
-}
 
 
-EBmeans <- function(data, variable, grouping){
-  # This function calculates empirical Bayesian means in a way that eliminates the 
-  # need for a multistep process in code:
-  # Run model:
-  require(lme4)
-  mod <- eval(substitute(lmer(variable ~ (1 | grouping), data)))
-  # Extract coefficients:
+# EBmeans - making Empirical Bayes means ----------------------------------
+
+
+
+EBmeans <- 
+  function(
+    data, 
+    variable, 
+    grouping){
+    # This function calculates empirical Bayesian means in a way that eliminates the 
+    # need for a multistep process in code.
+    
+    # Run model:
+    require(lme4)
+    mod <- eval(substitute(lmer(variable ~ (1 | grouping), data)))
+    # Extract coefficients:
   coefs <- data.frame(
     grouping = rownames(coef(mod)[[1]]),
     coefs = coef(mod)[[1]]$`(Intercept)`,
@@ -124,6 +127,12 @@ EBmeans <- function(data, variable, grouping){
   #Output the EB mean values:
   coefs.full[["coefs"]][order(coefs.full["index"])]
 }
+
+
+
+# ControlFor - construct residual variables  --------
+
+
 
 ControlFor <-function(
   dat, # dataframe, not in quotes

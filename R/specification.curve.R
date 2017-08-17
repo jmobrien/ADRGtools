@@ -1,6 +1,8 @@
 
-# linear model clustering function ----------------------------------------
+# cl - linear model clustering function ----------------------------------------
+
 # Included for use so that the specification curve can cluster standard errors if needed
+
 cl   <- function(dat,fm, cluster){
            require(sandwich, quietly = TRUE)
            require(lmtest, quietly = TRUE)
@@ -387,7 +389,7 @@ s.curve <-
   }
 
 
-# Plotting tool -----------------------------------------------------------
+# Plotting tool for s.curve output ----------------------------------------
 
 
 
@@ -436,7 +438,9 @@ s.curve.plot <-
 
 
 
-# Tablemaking function -------------------------------------------------------
+
+# Tablemaking tool for s.curve output -------------------------------------
+
 
 
 s.curve.table <- function(scurve, ordering = "estimate"){

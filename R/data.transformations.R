@@ -1,24 +1,44 @@
-# z-scoring that preserves data type (scale() converts to matrix)  
+
+
+# zScore - class-preserving standardization function ----------------------
+
 zScore  <- function(x){
   # z-scoring that preserves data type (scale() converts to matrix)  
   as.numeric(scale(x))}
 
 
 
-#function for making the range of a function 0 to 1 while maintaining scaling
-range0to1 <- function(x, min=NULL, max=NULL){
+# range0to1 - maps variable to [0,1] --------------------------------------
+
+range0to1 <- 
+  function(
+    x, # variable
+    min=NULL, # value to be mapped to 0, will use variable min if not specified
+    max=NULL  # value to be mapped to 1, will use variable max if not specified
+    ){
   #function for making the range of a function 0 to 1 while maintaining scaling
   if(is.null(min)){min <- min(x, na.rm=T)}
   if(is.null(max)){max <- max(x, na.rm=T)}
   (x-min)/(max-min)
 }  
 
-# Function for reverse coding
-revCode <- function(x, max_x=NULL, min_x=NULL){
+
+# revCode - reverse codes variables ---------------------------------------
+
+
+revCode <- 
+  function(x, 
+           max = NULL, # maximum possible value, will use variable's max if not specified
+           min = NULL # minimum possible value, will use variable's min if not specified
+           ){
   # Function for reverse coding
-  if(is.null(min_x)){min_x <- min(x, na.rm=T)}
-  if(is.null(max_x)){max_x <- max(x, na.rm=T)}
-  max_x + min_x - x}
+  if(is.null(min)){min <- min(x, na.rm=T)}
+  if(is.null(max)){max <- max(x, na.rm=T)}
+  max + min - x
+  }
+
+
+# OutRemove - Checks for and Winsorizes outliers --------------------------
 
 
 OutRemove <- 
@@ -44,8 +64,10 @@ OutRemove <-
   }
 
 
+# GroupCenter - centers data at mean values of groups ---------------------
 
-groupcenter <- 
+
+GroupCenter <- 
 # Group centering data- give data and grouping variable
   function(
     variable, # Variable to be group-centered/de-meaned
@@ -59,6 +81,7 @@ groupcenter <-
     dat - g.mean
   }
 
+
 ZandTrim <- 
   function(
     dat, # a dataframe
@@ -66,10 +89,11 @@ ZandTrim <-
     direction = "both", # Direction for one-tailed test
     dev.cutoff = 3 # cutoff in standard deviation units
   ) {
-    # convenience function, 
-    # trims all variables in named vector (defaults to both tails, 3sd cutoff,
+    # convenience function - 
+    # trims all variables names in variable "vars" (defaults to both tails, 3sd cutoff)
     # does z-scoring of the variables trimmed and untrimmed,
     # outputs the final product as a new dataframe including the added items.
+    # Gives warning if some varibles don't have trimmable values.
     
     # create new variable names:
     vars.z <- paste0(vars, ".z")

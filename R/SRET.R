@@ -1,4 +1,7 @@
 
+
+# SRETextract - tool for pulling out JS SRET data  ------------------------
+
 SRETextract <- function(dat,
                         alt.names = 
                           c(SRET.words = "SRET.words", 

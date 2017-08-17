@@ -3,6 +3,7 @@
 
 
 
+
 # Function that can handle reverse coded items when making composites
 makevar <- 
   function(
@@ -96,7 +97,6 @@ merge.with.order <-
 
 
 # EBmeans - making Empirical Bayes means ----------------------------------
-
 
 
 EBmeans <- 

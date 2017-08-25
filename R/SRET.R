@@ -3,10 +3,8 @@
 # SRETextract - tool for pulling out JS SRET data  ------------------------
 
 SRETextract <- function(dat,
-                        alt.names = 
-                          c(SRET.words = "SRET.words", 
-                            SRET.keys  = "SRET.keys", 
-                            SRET.time  = "SRET.time")
+                        alt.names = NULL,
+                        suffix = NULL
 ){
   # This function should be written back to the full data that you have, like:
   # mydata <- SRETextract(mydata)
@@ -16,8 +14,11 @@ SRETextract <- function(dat,
   
   require(stringr)
   
-  if(is.null(names(alt.names))){
-    names(alt.names) <- c("SRET.words", "SRET.keys", "SRET.time")
+  if(is.null(alt.names)){
+    alt.names <- 
+      c(SRET.words = "SRET.words", 
+        SRET.keys  = "SRET.keys", 
+        SRET.time  = "SRET.time")
   } 
   
   if(!all(c("SRET.words", "SRET.keys", "SRET.time") %in% 
@@ -136,7 +137,14 @@ SRETextract <- function(dat,
   
   # Summaries back into the main dataset ------------------------------------
   
-  
+output.vars <- 
+    c("sret.num.words.seen", 
+      "sret.pos.words.seen", "sret.neg.words.seen", 
+      "sret.percent.pos.words", "sret.percent.neg.words", 
+      "sret.num.pos.agree", "sret.num.neg.agree",
+      "sret.percent.pos.agree", "sret.percent.pos.agree"
+    )
+                 
   
   # Count of words seen
   dat$sret.num.words.seen <- 
@@ -188,6 +196,20 @@ SRETextract <- function(dat,
   dat$sret.percent.neg.agree <- 
     dat$sret.num.neg.agree /
     dat$sret.neg.words.seen
+  
+if(!is.null(suffix)){
+  output.vars <- 
+    c("sret.num.words.seen", 
+      "sret.pos.words.seen", "sret.neg.words.seen", 
+      "sret.percent.pos.words", "sret.percent.neg.words", 
+      "sret.num.pos.agree", "sret.num.neg.agree",
+      "sret.percent.pos.agree", "sret.percent.neg.agree"
+    )
+  
+  names(dat)[names(dat) %in% output.vars] <- paste0(output.vars, suffix)
+  
+}
+
   
   dat
   

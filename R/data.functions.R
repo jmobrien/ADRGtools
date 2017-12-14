@@ -145,3 +145,13 @@ ControlFor <-function(
   resid(lm(form, dat, na.action="na.exclude"))
 }
 
+
+
+# Standard error ----------------------------------------------------------
+
+se <- function(
+  vec # numeric vector
+  ){
+  sd(x, na.rm = TRUE) / sqrt(length(x))
+}
+  

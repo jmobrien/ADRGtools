@@ -7,6 +7,16 @@ zScore  <- function(x){
   as.numeric(scale(x))}
 
 
+zScoreLong <- function(data, x, group){
+  # does z-scoring by group for L2 variables 
+  if(any(eval(substitute(aggregate(x ~ group, data = data, FUN = var, na.rm=T)))[[2]] != 0))
+    stop("Varable is not equal within some groups")
+  vals <- eval(substitute(aggregate(x ~ group, data = data, FUN = unique)))
+  vals$zvals <- zScore(vals[[2]])
+  vals[match(eval(substitute(data$group)), vals[[1]]), 2]
+}
+
+
 
 # range0to1 - maps variable to [0,1] --------------------------------------
 

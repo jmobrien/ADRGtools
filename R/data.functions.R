@@ -19,6 +19,11 @@ makevar <-
     # coding as needed, and can provide overall up/down adjustment (for example,
     # a clinical scale measured on 1-3 that is supposed to be scored 0-2.
 
+    if(!all(c(vars, rev.vars) %in% names(data))){
+      missings <- c(vars, rev.vars)[!c(vars, rev.vars) %in% names(dat)]
+      stop(paste0("Variables ", paste0(missings, collapse = ", "), " not in data"))
+    }
+    
     if(!type %in% c("mean", "sum", "MEAN", "SUM", "Mean", "Sum")){
       stop("type must be 'mean' or 'sum'")
     }

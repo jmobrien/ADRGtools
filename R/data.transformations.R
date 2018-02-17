@@ -88,7 +88,7 @@ GroupCenter <-
           as.factor(grouping),
           FUN = function(x){mean(x, na.rm=na.rm)}
       )
-    dat - g.mean
+    variable - g.mean
   }
 
 
@@ -104,6 +104,11 @@ ZandTrim <-
     # does z-scoring of the variables trimmed and untrimmed,
     # outputs the final product as a new dataframe including the added items.
     # Gives warning if some varibles don't have trimmable values.
+    
+    if(!all(c(vars) %in% names(dat))){
+      missings <- c(vars)[!c(vars) %in% names(dat)]
+      stop(paste0("Variables ", paste0(missings, collapse = ", "), " not in data"))
+    }
     
     # create new variable names:
     vars.z <- paste0(vars, ".z")

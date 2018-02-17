@@ -1,4 +1,4 @@
-# ADRGmisc
+# ADRGtools
 
 ## Summary
 This is a package containing all the different functions that people have used/proposed.  

@@ -36,9 +36,16 @@ nameslike <- function(data, regexp){
 # %!in% - a convenience function for "not in" 
 `%!in%` <- Negate("%in%")
 
-# Allows you to simultaneously extract and rename variables from a data frame
-# Uses the 
-select.rename <- function(df, ...){
-     df %>% select(!!!rlang::syms(...))
+# Allows you to simultaneously extract and rename variables from a data frame using quoted strings
+# Uses a 
+select.rename <- function(df, old, new, drop = TRUE){
+  sel = as.list(setNames(old, new))
+  if (drop == TRUE){
+     out <- df %>% select(!!!rlang::syms(sel))
+  }
+  if (drop == FALSE){
+     out <- df %>% rename(!!!rlang::syms(sel))
+  }
+  out
 }
 

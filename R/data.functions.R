@@ -60,6 +60,7 @@ makevar <-
      rowSums(ourdat, na.rm=T)
      )
   }
+    out
   }
     
 

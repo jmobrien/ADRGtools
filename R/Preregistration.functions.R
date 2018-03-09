@@ -102,7 +102,7 @@ PreregTestSubsamples <-
     # Finally ,take the row.samples variable and construct a selection table:
     
     match.table <- 
-      set_names(
+      setNames(
         as.data.frame(
           lapply(row.samples,
                  function(samp){

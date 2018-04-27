@@ -27,18 +27,60 @@ SRETextract <- function(dat,
   }
   
   
+# Setup: wordlists --------------------------------------------------------
   
+  wordlist <- 
+    c("Funny", "Happy", "Terrible", "Angry", "Ashamed", "Free", 
+      "Sorry", "Hateful", "Kind", "Stupid", "Naughty", "Helpful", 
+      "Joyful", "Worried", "Playful", "Horrible", "Bad", "Fantastic", 
+      "Depressed", "Pleased", "Nasty", "Foolish", "Good", "Brilliant", 
+      "Excited", "Nice", "Annoyed", "Content", "Sad", "Upset", 
+      "Scared", "Awesome", "Unloved", "Fun", "Unhappy", "Alone", 
+      "Cool", "Excellent", "Loved", "Confident", "Unwanted", "Friendly", 
+      "Great", "Lost", "Guilty", "Proud", "Lonely", "Mad", 
+      "Wicked", "Best", "Glad", "Wonderful")
+  
+  wordlist.positive <- 
+    c("Happy", "Fun", "Brilliant", "Cool", "Good", "Glad", 
+      "Loved", "Friendly", "Wonderful",  "Pleased", "Helpful","Proud", 
+      "Fantastic", "Confident", "Content", "Joyful",  "Best", "Excited", 
+      "Free", "Funny", "Kind", "Playful",   "Great", "Excellent", 
+      "Awesome", "Nice")
+  
+  wordlist.negative <-
+    c("Terrible", "Angry", "Ashamed", "Sorry", "Hateful", "Stupid", 
+      "Naughty", "Worried", "Horrible", "Bad", "Depressed", "Nasty", 
+      "Foolish", "Annoyed", "Sad", "Upset", "Scared", "Unloved", 
+      "Unhappy", "Alone", "Unwanted", "Lost", "Guilty", "Lonely", 
+      "Mad", "Wicked")
+  
+  # make reference data frame:
+  wordlist.ispositive <- ifelse(wordlist %in% wordlist.positive, 1, 0)
+  
+  wordlist.reference <- 
+    data.frame(
+      wordlist,
+      is.positive = wordlist.ispositive,
+      stringsAsFactors = FALSE
+    )  
+
+ # Initial extraction of JSON data ----------------------------------
   
   # Extract the words from each person's responses:
   sret.words <- 
     str_extract_all(dat[[alt.names["SRET.words"]]], 
                     "[[:alpha:]]+")
+  
+  # Keypresses
   sret.keys <- 
     str_extract_all(dat[[alt.names["SRET.keys"]]], 
                     "[[:alpha:]]+")
+  
+  # Endorsements:
   sret.agree <- 
     lapply(sret.keys, function(key){ifelse(key=="P", 1, 0)})
   
+  # Response times:
   sret.time <- 
     lapply(str_extract_all(
       dat[[alt.names["SRET.time"]]], 
@@ -46,7 +88,28 @@ SRETextract <- function(dat,
       as.double)
   
   
-  # Create a data.frame for every person with their responses:
+  
+  # Checking the length:
+  length.check <-
+    data.frame(
+      words.length = sapply(sret.words, length),
+      keys.length = sapply(sret.keys, length),
+      agree.length = sapply(sret.agree, length),
+      time.length = sapply(sret.time, length)
+    )
+  
+  #noting any discrepancies:
+  length.check$problemflag <-
+    vapply(seq_along(nrow(length.check)), function(i){
+      ifelse(
+        any(is.na(unlist(length.check[i,])) | 
+              all(unlist(length.check[i,]) == 52) | 
+              all(unlist(length.check[i,]) == 0)
+        ), 0L, 1L)
+    }, FUN.VALUE = integer(1))
+  
+  
+  # Create a data frame for every person with their responses:
   sret.data <- 
     mapply(
       data.frame,
@@ -60,23 +123,39 @@ SRETextract <- function(dat,
       SIMPLIFY = FALSE
     )
   
-  # Adding in a word-position variable (maybe useful later) 
+  # Adding in a word-position variable, problem flag for RT, valence marker
   sret.data <- 
     lapply(sret.data, function(x){
+      
+      # Word position (order seen)
       len <- seq_len(nrow(x))
-      x$word.position <- 
-        ifelse(len == 1, NA, len)
+      x$word.position <- len
+      
+      # Word valence:
+      # Compare to list of words:
+      ispos.index <- 
+        match(x$words, wordlist.reference$wordlist)
+      # Note if positive or not
+      x$ispositive <- 
+        wordlist.reference$is.positive[ispos.index]
+      
+      # Check for RTs that are < 200
+      x$RTsub200 <- ifelse(x$time < 200, 1, 0)
+      
+      # Check for RT's that are above 3 AMD > median
+      xmedian <- median(x$time[x$RTsub200 == 0]) 
+      xMAD <- mad(x$time[x$RTsub200 == 0])
+      x$RToutlier <- 
+        ifelse(
+          x$RTsub200 == 0 &
+          x$time > (xmedian + 3*xMAD)
+          , 1, 0)
+      
       x
     })
   
-  # Checking the length:
-  length.check <-
-    data.frame(
-      words.length = sapply(sret.words, length),
-      keys.length = sapply(sret.keys, length),
-      agree.length = sapply(sret.agree, length),
-      time.length = sapply(sret.time, length)
-    )
+
+    
   
   # sret.data[[165]]
   # sret.data[[10]]
@@ -86,125 +165,183 @@ SRETextract <- function(dat,
   # sret.data[[249]]$words)
   
   
-  # Create wordlist for reference -------------------------------------------
-  
-  wordlist <- 
-    c("Funny", "Happy", "Terrible", "Angry", "Ashamed", "Free", "Sorry", "Hateful", "Kind", "Stupid", 
-      "Naughty", "Helpful", "Joyful", "Worried", "Playful", "Horrible", "Bad", "Fantastic", "Depressed", 
-      "Pleased", "Nasty", "Foolish", "Good", "Brilliant", "Excited", "Nice", "Annoyed", "Content", "Sad", 
-      "Upset", "Scared", "Awesome", "Unloved", "Fun", "Unhappy", "Alone", "Cool", "Excellent", "Loved", 
-      "Confident", "Unwanted", "Friendly", "Great", "Lost", "Guilty", "Proud", "Lonely", "Mad", "Wicked", 
-      "Best", "Glad", "Wonderful")
-  
-  wordlist.positive <- 
-    c("Happy", "Fun", "Brilliant", "Cool", "Good", "Glad", "Loved", "Friendly", "Wonderful",  
-      "Pleased", "Helpful","Proud", "Fantastic", "Confident", "Content", "Joyful",  "Best", 
-      "Excited", "Free", "Funny", "Kind", "Playful",   "Great", "Excellent", "Awesome", "Nice")
-  
-  wordlist.negative <-
-    c("Terrible", "Angry", "Ashamed", "Sorry", "Hateful", "Stupid", "Naughty", "Worried", "Horrible", 
-      "Bad", "Depressed", "Nasty", "Foolish", "Annoyed", "Sad", "Upset", "Scared", "Unloved", "Unhappy", 
-      "Alone", "Unwanted", "Lost", "Guilty", "Lonely", "Mad", "Wicked")
-  
-  # make reference data frame:
-  wordlist.ispositive <- ifelse(wordlist %in% wordlist.positive, 1, 0)
-  
-  wordlist.reference <- 
-    data.frame(
-      wordlist,
-      is.positive = wordlist.ispositive,
-      stringsAsFactors = FALSE
-    )
-  
-  
-  # Add valence to each set of results --------------------------------------
-  
-  
-  # Add the valence to each one:
-  sret.data <- 
-    lapply(sret.data,
-           function(x){
-             #Match to main worlist
-             ispos.index <- match(x$words, wordlist.reference$wordlist)
-             #Write to individual data frame:
-             x$ispositive <- 
-               wordlist.reference$is.positive[ispos.index]
-             x
-           })
-  
-  
-  
   
   # Summaries back into the main dataset ------------------------------------
   
 output.vars <- 
-    c("sret.num.words.seen", 
-      "sret.pos.words.seen", "sret.neg.words.seen", 
-      "sret.percent.pos.words", "sret.percent.neg.words", 
-      "sret.num.pos.agree", "sret.num.neg.agree",
-      "sret.percent.pos.agree", "sret.percent.pos.agree"
+    c("sret.endorsepos", "sret.endorseneg",
+      "sret.RTendorsepos", "sret.RTendorseneg",
+      "sret.RTrejectpos", "sret.RTrejectneg",
+      "sret.RToverall",
+      "sret.totalpos", "sret.totalneg",
+      "sret.sub200pos", "sret.sub200neg",
+      "sret.outlierpos", "sret.outlierneg",
+      "sret.problemflag", "sret.problemdescrip"
     )
                  
   
-  # Count of words seen
-  dat$sret.num.words.seen <- 
+  # Proportion of positive words endorsed
+  dat$sret.endorsepos <-
     sapply(sret.data, function(x){
-      len <- nrow(x)
-      ifelse(len == 1, 0, len)})
+      ifelse(nrow(x) == 0, NA, 
+             mean(x$agree[x$ispositive & !x$RTsub200])
+      )})
+  
+  # Proportion of negative words endorsed
+  dat$sret.endorseneg <-
+    sapply(sret.data, function(x){
+      ifelse(nrow(x) == 0, NA, 
+             mean(x$agree[!x$ispositive & !x$RTsub200])
+      )})
+  
+  # RT of positive words endorsed
+  dat$sret.RTendorsepos <-
+    sapply(sret.data, function(x){
+      ifelse(nrow(x) == 0, NA, 
+             round(
+               mean(x$time[x$ispositive & x$agree & !x$RTsub200 & !x$RToutlier])
+               , 0)
+      )})
+  
+  # RT  of negative words endorsed:
+  dat$sret.RTendorseneg <-
+    sapply(sret.data, function(x){
+      ifelse(nrow(x) == 0, NA, 
+             round(
+               mean(x$time[!x$ispositive & x$agree & !x$RTsub200 & !x$RToutlier])
+               , 0)
+      )})
+
+  # RT of positive words rejected:
+  dat$sret.RTrejectpos <-
+    sapply(sret.data, function(x){
+      ifelse(nrow(x) == 0, NA, 
+             round(
+               mean(x$time[x$ispositive & !x$agree & !x$RTsub200 & !x$RToutlier])
+               , 0)
+      )})
+
+  # RT of negative words rejected:
+  dat$sret.RTrejectneg <-
+    sapply(sret.data, function(x){
+      ifelse(nrow(x) == 0, NA, 
+             round(
+               mean(x$time[!x$ispositive & !x$agree & !x$RTsub200 & !x$RToutlier])
+               , 0)
+      )})
+  
+  # RT of negative words rejected:
+  dat$sret.RToverall <-
+    sapply(sret.data, function(x){
+      ifelse(nrow(x) == 0, NA, 
+             round(
+               mean(x$time[!x$RTsub200 & !x$RToutlier])
+               ,0)
+      )})
+  
   
   # Number of words seen that were positive:
-  dat$sret.pos.words.seen <-
+  dat$sret.totalpos <- 
     sapply(sret.data, function(x){
+      ifelse(nrow(x) == 0, NA, 
       sum(x$ispositive, na.rm=T)
-    })
+      )})
   
   # Number of words seen that were negative
-  dat$sret.neg.words.seen <-
-    dat$sret.num.words.seen -
-    dat$sret.pos.words.seen
-  
-  # Percent of words seen that were positive
-  dat$sret.percent.pos.words <-
-    dat$sret.pos.words.seen /
-    dat$sret.num.words.seen
-  
-  # percent of words seen that were negative
-  dat$sret.percent.neg.words <-
-    1 - dat$sret.percent.pos.words
-  
-  
-  # Number of positive words agreed-to:
-  dat$sret.num.pos.agree <-
+  dat$sret.totalneg <- 
     sapply(sret.data, function(x){
       ifelse(nrow(x) == 0, NA, 
-             sum(x$ispositive & x$agree)
-      )})
-  
-  # Number of negative words agreed-to:
-  dat$sret.num.neg.agree <- 
+             sum(!x$ispositive, na.rm=T)
+    )})
+
+  # Number of positive <200ms words
+  dat$sret.sub200pos <- 
     sapply(sret.data, function(x){
       ifelse(nrow(x) == 0, NA, 
-             sum((!x$ispositive) & x$agree)
-      )})
+      sum(x$ispositive & x$RTsub200, na.rm=T)
+    )})
   
-  # Percentage of positive words agreed-to:
-  dat$sret.percent.pos.agree <- 
-    dat$sret.num.pos.agree /
-    dat$sret.pos.words.seen
+  # Number of negative <200ms words
+  dat$sret.sub200neg <- 
+    sapply(sret.data, function(x){
+      ifelse(nrow(x) == 0, NA, 
+      sum(!x$ispositive & x$RTsub200, na.rm=T)
+    )})
+
+  # Number of positive outlier words
+  dat$sret.outlierpos <- 
+    sapply(sret.data, function(x){
+      ifelse(nrow(x) == 0, NA, 
+      sum(x$ispositive & x$RToutlier, na.rm=T)
+    )})
   
-  # Percentage of negative words agreed-to:
-  dat$sret.percent.neg.agree <- 
-    dat$sret.num.neg.agree /
-    dat$sret.neg.words.seen
+  # Number of negative outlier words
+  dat$sret.outlierneg <- 
+    sapply(sret.data, function(x){
+      ifelse(nrow(x) == 0, NA, 
+      sum(!x$ispositive & x$RToutlier, na.rm=T)
+    )})
+  
+  #Problem variables: 
+  dat[c("sret.problemflag", "sret.problemdescrip")] <-
+    do.call(rbind,
+      lapply(sret.data, function(x){
+        
+        # NA's for missing data
+        if(nrow(x)==0) {
+          flag <- NA
+          descrip <- NA
+        } else {
+          
+          # Set flags to 0 assuming no problems
+          flag <- 0
+          descrip <- ""
+          sep <- NULL
+          
+          # Flag for >10% too-fast responding:
+          if(mean(x$RTsub200) >= .1){
+            flag <- 1
+            descrip <- "10%sub200"
+            sep <- "; "
+          }
+          # Flag for >15% problematic responding:
+          if(mean(rowSums(x[c("RTsub200", "RToutlier")])) >= .15){
+            flag <- 1
+            descrip <- paste0(descrip, sep, "15%badRT")
+            sep <- "; "
+          }
+          # Flag for uniform responding:
+          if(mean(x$agree[!x$RTsub200]) %in% 0:1){
+            flag <- 1
+            descrip <- paste0(descrip, sep, "uniform")
+            sep <- "; "
+          }
+          # Flag for potentially noncompliant responding:
+          if(any(table(x$agree[!x$RTsub200]) <= 5)){
+            flag <- 1
+            descrip <- paste0(descrip, sep, "near-uniform")
+            sep <- "; "
+          }
+        }
+        # Output the data for subsequent row-binding:
+        data.frame(flag, descrip)
+      }))
+
+  # Error checking:
+  if(any(length.check$problemflag == 1)){
+    errors <- which(length.check$problemflag)
+    dat$sret.problemflag[errors] <- 1
+    dat$sret.problemdescrip[errors] <-
+      ifelse(dat$problemdescrip[errors] == "",
+             "error", 
+             paste0(dat$problemdescrip[errors], "; ", "error")
+      )
+  }
+     
+  
+# Adds the suffix in as necessary:
   
 if(!is.null(suffix)){
-  output.vars <- 
-    c("sret.num.words.seen", 
-      "sret.pos.words.seen", "sret.neg.words.seen", 
-      "sret.percent.pos.words", "sret.percent.neg.words", 
-      "sret.num.pos.agree", "sret.num.neg.agree",
-      "sret.percent.pos.agree", "sret.percent.neg.agree"
-    )
   
   names(dat)[names(dat) %in% output.vars] <- paste0(output.vars, suffix)
   

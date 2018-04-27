@@ -20,7 +20,7 @@ makevar <-
     # a clinical scale measured on 1-3 that is supposed to be scored 0-2.
 
     if(!all(c(vars, rev.vars) %in% names(data))){
-      missings <- c(vars, rev.vars)[!c(vars, rev.vars) %in% names(dat)]
+      missings <- c(vars, rev.vars)[!c(vars, rev.vars) %in% names(data)]
       stop(paste0("Variables ", paste0(missings, collapse = ", "), " not in data"))
     }
     

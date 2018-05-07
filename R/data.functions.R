@@ -7,7 +7,7 @@
 # Function that can handle reverse coded items when making composites
 makevar <- 
   function(
-    data, # data for use
+    dat, # data for use
     vars, # Non-reverse coded variables (vector in quotes)
     rev.vars = NULL, #Reverse coded variables (vector in quotes)
     rev.max = NULL, # Maximum value of scale (used for reverse coding)
@@ -19,8 +19,8 @@ makevar <-
     # coding as needed, and can provide overall up/down adjustment (for example,
     # a clinical scale measured on 1-3 that is supposed to be scored 0-2.
 
-    if(!all(c(vars, rev.vars) %in% names(data))){
-      missings <- c(vars, rev.vars)[!c(vars, rev.vars) %in% names(data)]
+    if(!all(c(vars, rev.vars) %in% names(dat))){
+      missings <- c(vars, rev.vars)[!c(vars, rev.vars) %in% names(dat)]
       stop(paste0("Variables ", paste0(missings, collapse = ", "), " not in data"))
     }
     
@@ -29,7 +29,7 @@ makevar <-
     }
     
     # Data frame for making means:
-    ourdat <- data[vars]
+    ourdat <- dat[vars]
     
     # Reverse coding if necessary:
     if(!is.null(rev.vars)){

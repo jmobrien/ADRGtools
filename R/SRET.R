@@ -27,7 +27,7 @@ SRETextract <- function(dat,
   }
   
   
-# Setup: wordlists --------------------------------------------------------
+  # Setup: wordlists --------------------------------------------------------
   
   wordlist <- 
     c("Funny", "Happy", "Terrible", "Angry", "Ashamed", "Free", 
@@ -63,8 +63,8 @@ SRETextract <- function(dat,
       is.positive = wordlist.ispositive,
       stringsAsFactors = FALSE
     )  
-
- # Initial extraction of JSON data ----------------------------------
+  
+  # Initial extraction of JSON data ----------------------------------
   
   # Extract the words from each person's responses:
   sret.words <- 
@@ -148,14 +148,14 @@ SRETextract <- function(dat,
       x$RToutlier <- 
         ifelse(
           x$RTsub200 == 0 &
-          x$time > (xmedian + 3*xMAD)
+            x$time > (xmedian + 3*xMAD)
           , 1, 0)
       
       x
     })
   
-
-    
+  
+  
   
   # sret.data[[165]]
   # sret.data[[10]]
@@ -168,165 +168,122 @@ SRETextract <- function(dat,
   
   # Summaries back into the main dataset ------------------------------------
   
-output.vars <- 
-    c("sret.endorsepos", "sret.endorseneg",
-      "sret.RTendorsepos", "sret.RTendorseneg",
-      "sret.RTrejectpos", "sret.RTrejectneg",
-      "sret.RToverall",
-      "sret.totalpos", "sret.totalneg",
-      "sret.sub200pos", "sret.sub200neg",
-      "sret.outlierpos", "sret.outlierneg",
-      "sret.problemflag", "sret.problemdescrip"
+  output.vars <- 
+    c("endorsepos", "endorseneg",
+      "RTendorsepos", "RTendorseneg",
+      "RTrejectpos", "RTrejectneg",
+      "RToverall",
+      "totalpos", "totalneg",
+      "sub200pos", "sub200neg",
+      "outlierpos", "outlierneg",
+      "problemflag", "problemdescrip"
     )
-                 
-  
-  # Proportion of positive words endorsed
-  dat$sret.endorsepos <-
-    sapply(sret.data, function(x){
-      ifelse(nrow(x) == 0, NA, 
-             mean(x$agree[x$ispositive & !x$RTsub200])
-      )})
-  
-  # Proportion of negative words endorsed
-  dat$sret.endorseneg <-
-    sapply(sret.data, function(x){
-      ifelse(nrow(x) == 0, NA, 
-             mean(x$agree[!x$ispositive & !x$RTsub200])
-      )})
-  
-  # RT of positive words endorsed
-  dat$sret.RTendorsepos <-
-    sapply(sret.data, function(x){
-      ifelse(nrow(x) == 0, NA, 
-             round(
-               mean(x$time[x$ispositive & x$agree & !x$RTsub200 & !x$RToutlier])
-               , 0)
-      )})
-  
-  # RT  of negative words endorsed:
-  dat$sret.RTendorseneg <-
-    sapply(sret.data, function(x){
-      ifelse(nrow(x) == 0, NA, 
-             round(
-               mean(x$time[!x$ispositive & x$agree & !x$RTsub200 & !x$RToutlier])
-               , 0)
-      )})
-
-  # RT of positive words rejected:
-  dat$sret.RTrejectpos <-
-    sapply(sret.data, function(x){
-      ifelse(nrow(x) == 0, NA, 
-             round(
-               mean(x$time[x$ispositive & !x$agree & !x$RTsub200 & !x$RToutlier])
-               , 0)
-      )})
-
-  # RT of negative words rejected:
-  dat$sret.RTrejectneg <-
-    sapply(sret.data, function(x){
-      ifelse(nrow(x) == 0, NA, 
-             round(
-               mean(x$time[!x$ispositive & !x$agree & !x$RTsub200 & !x$RToutlier])
-               , 0)
-      )})
-  
-  # RT of negative words rejected:
-  dat$sret.RToverall <-
-    sapply(sret.data, function(x){
-      ifelse(nrow(x) == 0, NA, 
-             round(
-               mean(x$time[!x$RTsub200 & !x$RToutlier])
-               ,0)
-      )})
   
   
-  # Number of words seen that were positive:
-  dat$sret.totalpos <- 
-    sapply(sret.data, function(x){
-      ifelse(nrow(x) == 0, NA, 
-      sum(x$ispositive, na.rm=T)
-      )})
   
-  # Number of words seen that were negative
-  dat$sret.totalneg <- 
-    sapply(sret.data, function(x){
-      ifelse(nrow(x) == 0, NA, 
-             sum(!x$ispositive, na.rm=T)
-    )})
-
-  # Number of positive <200ms words
-  dat$sret.sub200pos <- 
-    sapply(sret.data, function(x){
-      ifelse(nrow(x) == 0, NA, 
-      sum(x$ispositive & x$RTsub200, na.rm=T)
-    )})
+  dat[paste0("sret.", output.vars)] <-
+    do.call(rbind.data.frame, 
+            lapply(sret.data, function(x){
+              if(nrow(x) == 0 | all(is.na(x$words))){
+                
+                # Fill everything in with NA's if data is missing 
+                # (empty string or one NA) 
+                rep(NA, length(output.vars))
+                
+              } else {
+                
+                # Proportion of positive words endorsed
+                endorsepos <- mean(x$agree[x$ispositive & !x$RTsub200])
+                # Proportion of negative words endorsed
+                endorseneg <- mean(x$agree[!x$ispositive & !x$RTsub200])
+                # RT of positive words endorsed
+                RTendorsepos <-
+                  round(digits = 0,
+                        mean(x$time[x$ispositive & x$agree & 
+                                      !x$RTsub200 & !x$RToutlier]))
+                # RT  of negative words endorsed:
+                RTendorseneg <-
+                  round(digits = 0,
+                        mean(x$time[!x$ispositive & x$agree & 
+                                      !x$RTsub200 & !x$RToutlier]))
+                # RT of positive words rejected:
+                RTrejectpos <-
+                  round(digits = 0,
+                        mean(x$time[x$ispositive & !x$agree & 
+                                      !x$RTsub200 & !x$RToutlier]))
+                # RT of negative words rejected:
+                RTrejectneg <- 
+                  round(digits = 0,
+                        mean(x$time[!x$ispositive & !x$agree & 
+                                      !x$RTsub200 & !x$RToutlier]))
+                # RT of negative words rejected:
+                RToverall <- 
+                  round(digits = 0,
+                        mean(x$time[!x$RTsub200 & !x$RToutlier]))
+                # Number of words seen that were positive:
+                totalpos <- sum(x$ispositive, na.rm=T)
+                # Number of words seen that were negative
+                totalneg <- sum(!x$ispositive, na.rm=T)
+                # Number of positive <200ms words
+                sub200pos <- sum(x$ispositive & x$RTsub200, na.rm=T)
+                # Number of negative <200ms words
+                sub200neg <-  sum(!x$ispositive & x$RTsub200, na.rm=T)
+                # Number of positive outlier words
+                outlierpos <- sum(x$ispositive & x$RToutlier, na.rm=T)
+                # Number of negative outlier words
+                outlierneg <- sum(!x$ispositive & x$RToutlier, na.rm=T)
+                
+                #Problem variables: 
+                # Set flags to 0 assuming no problems
+                problemflag <- 0
+                problemdescrip <- ""
+                sep <- NULL
+                
+                # problemflag for >10% too-fast responding:
+                if(mean(x$RTsub200) >= .1){
+                  problemflag <- 1
+                  problemdescrip <- "10%sub200"
+                  sep <- "; "
+                }
+                
+                # problemflag for >15% problematic responding:
+                if(mean(rowSums(x[c("RTsub200", "RToutlier")])) >= .15){
+                  problemflag <- 1
+                  problemdescrip <- paste0(problemdescrip, sep, "15%badRT")
+                  sep <- "; "
+                }
+                
+                # problemflag for uniform responding:
+                if(mean(x$agree[!x$RTsub200]) %in% 0:1){
+                  problemflag <- 1
+                  problemdescrip <- paste0(problemdescrip, sep, "uniform")
+                  sep <- "; "
+                }
+                
+                # problemflag for potentially noncompliant responding:
+                if(any(table(x$agree[!x$RTsub200]) <= 5)){
+                  problemflag <- 1
+                  problemdescrip <- paste0(problemdescrip, sep, "near-uniform")
+                  sep <- "; "
+                }
+                
+                # Output the new data.frame:
+                data.frame(endorsepos, endorseneg,
+                           RTendorsepos, RTendorseneg,
+                           RTrejectpos, RTrejectneg,
+                           RToverall,
+                           totalpos, totalneg,
+                           sub200pos, sub200neg,
+                           outlierpos, outlierneg,
+                           problemflag, problemdescrip, 
+                           stringsAsFactors = FALSE
+                )
+                
+              } # end variable creation
+            } # End anon function
+            ) # End lapply
+    ) # End do.call
   
-  # Number of negative <200ms words
-  dat$sret.sub200neg <- 
-    sapply(sret.data, function(x){
-      ifelse(nrow(x) == 0, NA, 
-      sum(!x$ispositive & x$RTsub200, na.rm=T)
-    )})
-
-  # Number of positive outlier words
-  dat$sret.outlierpos <- 
-    sapply(sret.data, function(x){
-      ifelse(nrow(x) == 0, NA, 
-      sum(x$ispositive & x$RToutlier, na.rm=T)
-    )})
-  
-  # Number of negative outlier words
-  dat$sret.outlierneg <- 
-    sapply(sret.data, function(x){
-      ifelse(nrow(x) == 0, NA, 
-      sum(!x$ispositive & x$RToutlier, na.rm=T)
-    )})
-  
-  #Problem variables: 
-  dat[c("sret.problemflag", "sret.problemdescrip")] <-
-    do.call(rbind,
-      lapply(sret.data, function(x){
-        
-        # NA's for missing data
-        if(nrow(x)==0) {
-          flag <- NA
-          descrip <- NA
-        } else {
-          
-          # Set flags to 0 assuming no problems
-          flag <- 0
-          descrip <- ""
-          sep <- NULL
-          
-          # Flag for >10% too-fast responding:
-          if(mean(x$RTsub200) >= .1){
-            flag <- 1
-            descrip <- "10%sub200"
-            sep <- "; "
-          }
-          # Flag for >15% problematic responding:
-          if(mean(rowSums(x[c("RTsub200", "RToutlier")])) >= .15){
-            flag <- 1
-            descrip <- paste0(descrip, sep, "15%badRT")
-            sep <- "; "
-          }
-          # Flag for uniform responding:
-          if(mean(x$agree[!x$RTsub200]) %in% 0:1){
-            flag <- 1
-            descrip <- paste0(descrip, sep, "uniform")
-            sep <- "; "
-          }
-          # Flag for potentially noncompliant responding:
-          if(any(table(x$agree[!x$RTsub200]) <= 5)){
-            flag <- 1
-            descrip <- paste0(descrip, sep, "near-uniform")
-            sep <- "; "
-          }
-        }
-        # Output the data for subsequent row-binding:
-        data.frame(flag, descrip)
-      }))
-
   # Error checking:
   if(any(length.check$problemflag == 1)){
     errors <- which(length.check$problemflag)
@@ -337,17 +294,16 @@ output.vars <-
              paste0(dat$problemdescrip[errors], "; ", "error")
       )
   }
-     
   
-# Adds the suffix in as necessary:
   
-if(!is.null(suffix)){
+  # Adds the variable suffix in if requested:
+  if(!is.null(suffix)){
+    # Replace the output names with the suffix-appended ones:
+    names(dat)[names(dat) %in% output.vars] <- paste0(output.vars, suffix)
+    
+  }
   
-  names(dat)[names(dat) %in% output.vars] <- paste0(output.vars, suffix)
-  
-}
-
-  
+  # Output the original data frame plus the new variables:
   dat
   
 }

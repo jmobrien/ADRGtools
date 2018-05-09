@@ -8,12 +8,25 @@ dupInfo <-
     dupdat
   }
 
-construct.all <- function(...){
+construct.all <- function(..., cycle.order = NULL){
   # construct.all() Forms string elements (often, variable names), of all
   # combinations of a set of characteristics. For instance,
   # construct.all(c("algebra.", "calculus.", "geometry"), 1:4, "_", letters[1:4])
   # would make a vector 3x4x1x4 of format "[mathtype].[1-4]_[a-d]."  Useful when
   # constructing a list of various categories of similarly named variables.
+  if(!is.null(cycle.order)){
+    if(!length(list(...)) == length(cycle.order) |
+       !all.equal(sort(cycle.order), 1:length(cycle.order)))
+       stop("bad order specification")
+    
+    elems <- list(...)[cycle.order]
+    
+    elemgrid <- expand.grid(elems, stringsAsFactors = FALSE)[order(cycle.order)]
+    
+    vals <-
+      apply(elemgrid, 1, paste, collapse = "")
+  } else {
+  
   vals <- 
     apply(
       expand.grid(..., stringsAsFactors = FALSE),
@@ -21,6 +34,7 @@ construct.all <- function(...){
       paste,
       collapse = ""
     )
+  }
   vals
 }
 

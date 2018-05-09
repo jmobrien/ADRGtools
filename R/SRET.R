@@ -4,7 +4,8 @@
 
 SRETextract <- function(dat,
                         alt.names = NULL,
-                        suffix = NULL
+                        suffix = NULL,
+                        raw.out.path = NULL
 ){
   # This function should be written back to the full data that you have, like:
   # mydata <- SRETextract(mydata)
@@ -166,6 +167,7 @@ SRETextract <- function(dat,
   
   
   
+  
   # Summaries back into the main dataset ------------------------------------
   
   output.vars <- 
@@ -296,15 +298,83 @@ SRETextract <- function(dat,
   }
   
   
+  # Raw output --------------------------------------------------------------
+  
+  if(!is.null(raw.out.path)){
+    
+    output.vars <- c("rawmatchID", output.vars)
+    
+    dat$sret.rawmatchID <- 
+      paste0(round(as.numeric(Sys.time()), 0), seq_len(nrow(dat)))
+    
+    
+    raw.vars <-
+      construct.all(c(sort(wordlist.positive), sort(wordlist.negative)), ".", 
+                    c("agree", "time.ms", "order", "RTsub200", "RToutlier"))
+    
+    rawdat <- 
+      do.call(rbind.data.frame, 
+              lapply(sret.data, function(x){
+                if(nrow(x) == 0 | all(is.na(x$words))){
+                  
+                  # Fill everything in with NA's if data is missing 
+                  # (empty string or one NA) 
+                  rep(NA, length(raw.vars))
+                  
+                } else {
+                  x.sort <- 
+                    x[order(1-x$ispositive, x$words), 
+                      c("words", "agree", "time", "word.position", 
+                        "RTsub200", "RToutlier")]
+                  
+                  setNames(
+                    # Make a run of the words in question:
+                    as.list(
+                      round(digits = 0,
+                            do.call(c, x.sort[-1])))
+                    ,
+                    # Give them the right names, dropping any words if they don't 
+                    # have them
+                    construct.all(x$words, ".",
+                                  c("agree", "time.ms", "order",
+                                    "RTsub200", "RToutlier"))
+                  ) # End SetNames
+                  
+                } # End else
+              }) # End lapply
+      ) #end do.call (and creation)
+    
+    rawdat <- 
+      setNames(
+        cbind(dat[paste0("sret.", output.vars)], rawdat),
+        c(output.vars, names(rawdat))
+      )
+
+    if(raw.out.path == "HERE"){
+      message("outputting raw data ONLY (with summaries)")
+      return(rawdat)
+    } else {
+      message(paste0("raw data written to ", raw.out.path, 
+                     ", outputting summaries to original data frame"))
+      write.csv(rawdat, raw.out.path, row.names = FALSE)
+    } # End output
+  } # End raw data section
+  
+  # Final output ------------------------------------------------------------
+  
   # Adds the variable suffix in if requested:
   if(!is.null(suffix)){
     # Replace the output names with the suffix-appended ones:
     names(dat)[names(dat) %in% output.vars] <- paste0(output.vars, suffix)
     
-  }
+  }  
   
   # Output the original data frame plus the new variables:
   dat
   
 }
+
+
+
+
 

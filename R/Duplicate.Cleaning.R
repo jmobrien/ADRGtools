@@ -1,7 +1,8 @@
 DuplicatePattern <- 
   function(
     data, # The data in question 
-    id    # The id variable
+    id,    # The id variable
+    marker.suffix = NULL
   ){
     # Create datafile:
     workdat <- eval(substitute(data), envir = parent.frame())
@@ -135,8 +136,9 @@ DuplicateCombine <-
       )
     
     # Mark which rows are 
-    tempdat$duplicate.cleaned <- 0
-    combineddat$duplicate.cleaned <- 1
+    duplicate.cleaned.name <- paste0("duplicate.cleaned", marker.suffix)
+    tempdat[duplicate.cleaned.name] <- 0
+    combineddat[duplicate.cleaned.name] <- 1
     
     # Combine them into a final dataset
     final.dat <- rbind(tempdat[-cut.rows,], combineddat)

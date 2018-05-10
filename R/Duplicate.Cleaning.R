@@ -136,7 +136,7 @@ DuplicateCombine <-
       )
     
     # Mark which rows are 
-    duplicate.cleaned.name <- paste0("duplicate.cleaned", marker.suffix)
+    duplicate.cleaned.name <- paste0("duplicate_cleaned", marker.suffix)
     tempdat[duplicate.cleaned.name] <- 0
     combineddat[duplicate.cleaned.name] <- 1
     

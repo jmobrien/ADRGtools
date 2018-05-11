@@ -24,3 +24,25 @@ capture.output(
 
   viewer(htmlFile)
 }
+
+
+
+viewhtmlreg <- function(...){
+  require(texreg)
+  params <- list(...)
+  viewer <- getOption("viewer")
+  tempDir <- tempfile()
+  dir.create(tempDir)
+  htmlFile <- file.path(tempDir, "index.html")
+  params <-
+    c(params,
+      list(file=htmlFile)
+    )
+
+capture.output(
+  do.call(htmlreg, params),
+  file = "/dev/null"
+)
+
+  viewer(htmlFile)
+}

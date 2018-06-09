@@ -35,7 +35,7 @@ makevar <-
     if(!is.null(rev.vars)){
       
       ourdat[rev.vars] <-
-        lapply(data[rev.vars],
+        lapply(dat[rev.vars],
                function(rvar){
                  rev.max - rvar + rev.min
                })

@@ -34,6 +34,11 @@ makevar <-
     # Reverse coding if necessary:
     if(!is.null(rev.vars)){
       
+      if(is.null(rev.max)){
+        rev.max <- max(dat[rev.vars], na.rm = T)
+        message(sprintf("For reversed items, estimated maximum as %d, minimum as %d", rev.max, rev.min))
+      }
+      
       ourdat[rev.vars] <-
         lapply(dat[rev.vars],
                function(rvar){

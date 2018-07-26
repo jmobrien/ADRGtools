@@ -181,9 +181,9 @@ SRETextract <- function(dat,
       "problemflag", "problemdescrip"
     )
   
+  sret.output.vars <- paste0("sret.", output.vars)
   
-  
-  dat[paste0("sret.", output.vars)] <-
+  dat[sret.output.vars] <-
     do.call(rbind.data.frame, 
             lapply(sret.data, function(x){
               if(nrow(x) == 0 | all(is.na(x$words))){
@@ -346,7 +346,7 @@ SRETextract <- function(dat,
     
     rawdat <- 
       setNames(
-        cbind(dat[paste0("sret.", output.vars)], rawdat),
+        cbind(dat[sret.output.vars], rawdat),
         c(output.vars, names(rawdat))
       )
 
@@ -365,7 +365,7 @@ SRETextract <- function(dat,
   # Adds the variable suffix in if requested:
   if(!is.null(suffix)){
     # Replace the output names with the suffix-appended ones:
-    names(dat)[names(dat) %in% output.vars] <- paste0(output.vars, suffix)
+    names(dat)[names(dat) %in% sret.output.vars] <- paste0(sret.output.vars, suffix)
     
   }  
   

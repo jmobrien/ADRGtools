@@ -8,7 +8,7 @@
 makevar <- 
   function(
     dat, # data for use
-    vars, # Non-reverse coded variables (vector in quotes)
+    vars = NULL, # Non-reverse coded variables (vector in quotes)
     rev.vars = NULL, #Reverse coded variables (vector in quotes)
     rev.max = NULL, # Maximum value of scale (used for reverse coding)
     rev.min = 1, #minimum amount of scale (used for reverse coding, assumed 1)
@@ -18,6 +18,9 @@ makevar <-
     # Function that can quickly consruct composites, handling reverse
     # coding as needed, and can provide overall up/down adjustment (for example,
     # a clinical scale measured on 1-3 that is supposed to be scored 0-2.
+    if(is.null(c(vars, rev.vars))){
+       stop("must include at least one variable")
+    }
 
     if(!all(c(vars, rev.vars) %in% names(dat))){
       missings <- c(vars, rev.vars)[!c(vars, rev.vars) %in% names(dat)]
@@ -29,9 +32,18 @@ makevar <-
     }
     
     # Data frame for making means:
-    ourdat <- dat[vars]
+    if(!is.null(vars)){
     
-    # Reverse coding if necessary:
+      ourdat <- dat[vars]
+    
+    } else {
+      
+      # Make an empty data frame of appropriate length if there are no non-reverse-coded variables:
+      ourdat <- as.data.frame(matrix(nrow = nrow(dat), ncol = 0))
+      
+    }
+    
+    # Add reverse-coded variables if necessary:
     if(!is.null(rev.vars)){
       
       if(is.null(rev.max)){

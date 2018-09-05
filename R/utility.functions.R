@@ -19,6 +19,7 @@ construct.all <- function(..., cycle.order = NULL){
        !all.equal(sort(cycle.order), 1:length(cycle.order)))
        stop("bad order specification")
     
+    #expand.grid cycles starting with the first column, so we change the order beforehand and use that.
     elems <- list(...)[cycle.order]
     
     elemgrid <- expand.grid(elems, stringsAsFactors = FALSE)[order(cycle.order)]

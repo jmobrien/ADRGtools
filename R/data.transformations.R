@@ -13,10 +13,12 @@ zScoreLong <- function(data, x, group){
     stop("Varable is not equal within some groups")
   vals <- eval(substitute(aggregate(x ~ group, data = data, FUN = unique)))
   vals$zvals <- zScore(vals[[2]])
-  vals[match(eval(substitute(data$group)), vals[[1]]), 2]
+  vals[match(eval(substitute(data$group)), vals[[1]]), 3]
 }
 
-
+zScoreGroup <- function(data, x, group){
+  eval(substitute(ave(data$x, as.factor(group), zScore)))
+}
 
 # range0to1 - maps variable to [0,1] --------------------------------------
 

@@ -4,15 +4,15 @@
 # Included for use so that the specification curve can cluster standard errors if needed
 
 cl   <- function(dat,fm, cluster){
-           require(sandwich, quietly = TRUE)
-           require(lmtest, quietly = TRUE)
-           M <- length(unique(cluster))
-           N <- length(cluster)
-           K <- fm$rank
-           dfc <- (M/(M-1))*((N-1)/(N-K))
-           uj  <- apply(estfun(fm),2, function(x) tapply(x, cluster, sum));
-           vcovCL <- dfc*sandwich(fm, meat=crossprod(uj)/N)
-           coeftest(fm, vcovCL) }
+  require(sandwich, quietly = TRUE)
+  require(lmtest, quietly = TRUE)
+  M <- length(unique(cluster))
+  N <- length(cluster)
+  K <- fm$rank
+  dfc <- (M/(M-1))*((N-1)/(N-K))
+  uj  <- apply(estfun(fm),2, function(x) tapply(x, cluster, sum));
+  vcovCL <- dfc*sandwich(fm, meat=crossprod(uj)/N)
+  coeftest(fm, vcovCL) }
 
 
 
@@ -26,34 +26,44 @@ s.curve <-
     outcomes, # vector of outcome variables
     treatment, # vector of treatment variables
     cov.list, # named list, sets of covariates / moderators - write moderators as "var1:var2"
-              # eg: cov.list = list(gender = c("gender.roster", "gender.selfreport"),
-
+    # eg: cov.list = list(gender = c("gender.roster", "gender.selfreport"),
+    
     no.cov.exclude = NULL, # Will add a model where each item of the list above is missing,
-                           # unless specified here
+    # unless specified here
     dat, # datafile
-
+    
     mod.type = lm, #takes lm, glm (NOT YET IMPLEMENTED)
     mod.family = NULL, # if family needed (NOT YET IMPLEMENTED)
     critical.value = .05,
-    cat.percent = TRUE, # displays summary output of % significant at the end of the data for convenience in interactive mode. Set to false if using as a part of an Rmarkdown file.
+    subsets = NULL, # runs subsets of data based on the specifications listed here (vector of conditions)
+    subsets.exclude = TRUE, # if subsets added, includes an un-subsetted version
+    weights = NULL, # vector of weight variables names to add to runs, re-named if desired
+    weights.exclude = TRUE, # Includes an unweighted version where weights added 
     permutations = NULL, # number of permutations for p-curve
-    cluster = FALSE,
-    cluster.var = NULL
-    ) {
-
+    cluster = FALSE, # Cluster robust standard errors
+    cluster.var = NULL, # Variable on which to cluster
+    robust.se = NULL, # robustness adjustment-provide parameters in capital letters e.g. "HC1"
+    cat.percent = TRUE, # displays summary output of % significant at the end of the data for convenience in interactive mode. Set to false if using as a part of an Rmarkdown file.
+  ) {
+    
+    # Type of model:
+    model.type <- deparse(substitute(mod.type))
+    
     # Library calls ----
+    
+    
     require(broom)
-    require(ggplot2)
-
+    # require(ggplot2)
+    
     # Initialize output list ----
     output <- list()
-
+    
     # Construction of formulas ----
-
+    
     # Create a vector of all included variables,
     # outcomes, treatment variables, and covariates:
     vars.list <- unique(c(outcomes, treatment, unlist(cov.list)))
-
+    
     # Add NA's to beginning to model exclusion of that variable
     cov.list.na <-
       sapply(
@@ -68,24 +78,24 @@ s.curve <-
         USE.NAMES = TRUE,
         simplify = FALSE
       )
-
+    
     # Add in condition variables
     cov.list.final <-
       c(list(treatment = treatment), cov.list.na)
-
+    
     # Expand to a data frame where each case
     # is elements to go in a formula right-hand side
     mod.grid <-
       expand.grid(cov.list.final, stringsAsFactors = FALSE)
-
-
+    
+    
     # Expand to a data frame where cases are full formulas,
     # including outcomes (for setting up element indexing later)
     mod.grid.all <-
       expand.grid(c(list(outcomes=outcomes), cov.list.final),
                   stringsAsFactors = FALSE)
-
-
+    
+    
     # Make right-hand side formula, dropping NA's, and adding "1"
     # to empty formula (to avoid errors)
     formulas.rhs <-
@@ -94,84 +104,233 @@ s.curve <-
         formula.rhs[formula.rhs == ""] <- 1
         formula.rhs
       })
-
+    
     # Probably don't want empty models, so throw warning:
-    if( any(formulas.rhs == "") ) {
+    if( any(formulas.rhs == "1") ) {
       warning(
         "NOTE: set includes one or more null models."
-        )}
-
-
+      )}
+    
+    
     # Adds left-hand side (outcomes), make formulas:
     formulas <-
       lapply(
         as.vector(outer(outcomes, formulas.rhs,
                         paste, sep=" ~ ")),
         as.formula)
-
+    
     # Converts formula names to character vector:
     formula.names <- sapply(formulas, deparse, width.cutoff = 500)    # Length of specification list:
     n.formulas <- length(formulas)
-
+    
+    # Sets names of everything 
+    
+    full.names <- formula.names
+    
+    
+    
+    # Make the data subsets
+    
+    if (!is.null(subsets)){
+      
+      subsettings <-
+        do.call(
+          cbind.data.frame,
+          lapply(subsets, function(singlesubset){
+            with(dat, {
+              eval(parse(text = singlesubset))
+            })
+          })
+        )
+      
+      subset.names <- paste0("SUBSET: ", subsets)
+      
+      names(subsettings) <- subset.names
+      
+      if (subsets.exclude) {
+        
+        nosubset <- rep(TRUE, nrow(dat))
+        
+        subsettings <- cbind(nosubset, subsettings)
+        
+        subset.names <- c("SUBSET: ALL DATA", subset.names)
+        
+        names(subsettings) <- subset.names
+      }
+      
+      full.names <-
+        as.vector(outer(full.names, subset.names,
+                        paste, sep=", "))
+    } else {
+      subsettings <- TRUE
+    }
+    
+    # Make the data weights
+    
+    if (!is.null(weights)){
+      
+      if (is.null(names(weights))){
+        
+        # Make a vector of names for the weights used based on the variables:
+        weights.names <- paste0("WEIGHT: ", weights)
+        
+      } else {
+        
+        # make a vector using the existing names:
+        weights.names <- 
+          ifelse(names(weights) != "", 
+                 paste0("WEIGHT: ", names(weights)), 
+                 paste0("WEIGHT: ", weights)
+          )
+      }
+      
+      weight.frame <- 
+        do.call(
+          cbind.data.frame,
+          lapply(weights, function(wset){
+            dat[wset]
+          })
+        )
+      
+      names(weight.frame) <- weights.names          
+      
+      if (weights.exclude) {
+        
+        weight.frame <- 
+          cbind.data.frame(
+            rep(1, length(weight.frame)),
+            weight.frame
+          )
+        
+        weights.names <- c("WEIGHT: NONE", weights.names)
+        names(weight.frame) <- weights.names
+      }
+      
+      full.names <-
+        as.vector(outer(full.names, weights.names,
+                        paste, sep=", "))
+      
+    } else {
+      weight.frame <- NA
+    }
+    
+    
     # Function for running models ----
     #(used here, and in permutation form below)
     curveRunner <-
       function(
         f.data,
         full.models=FALSE
-        ){
+      ){
         # Runs models using the supplied model type, puts in list
         # (Needs more work to support multiple types of models)
+        
+        
         model.runs <-
-          lapply(formulas, function(forms){
-            FUN <- match.fun(mod.type)
-            FUN(forms, data=f.data)
-          })
+          unlist(unlist(
+            lapply(subsettings, function(sub){
+              lapply(weight.frame, function(w.frame){
+                lapply(formulas, function(forms){
+                  
+                  FUN <- match.fun(mod.type)
+
+                  params <- 
+                    list(
+                      formula = forms
+                    )
+                  
+                  if (length(w.frame) > 1 || !is.na(w.frame)){
+                    f.data$weightstouse <- w.frame
+                    params$weights <- f.data[sub,][["weightstouse"]]
+                  }
+                  
+                    
+                  params$data <- f.data[sub,]
+                  
+                  do.call(FUN, params)
+                  
+                })
+              })
+            })
+      , recursive = FALSE)
+      , recursive = FALSE)
         
         if(cluster) {
+          
+          # Load relevant packages:
+          require(sandwich)
+          require(lmtest)
+          
           model.runs.cluster <-
             lapply(model.runs, function(mods.tocluster){
-            cl(dat = f.data, fm = mods.tocluster, cluster = f.data[[cluster.var]])
+              cl(dat = f.data, fm = mods.tocluster, cluster = f.data[[cluster.var]])
             })
           
           models.tidy <-
-          lapply(model.runs.cluster, tidy)
-        } else {
-        # Gets tidied output (data frame) for concatenation:
-        models.tidy <-
-          lapply(model.runs, tidy)
+            lapply(model.runs.cluster, tidy)
+          
+        } else if(!is.null(robust.se)) {
+          
+          # Load relevant packages:
+          require(sandwich)
+          require(lmtest)
+          
+          # Do standard error adjustment as called for by robust.se:
+          model.runs.robust <-
+            lapply(model.runs, function(mod.toadjust){
+              coeftest(mod.toadjust, 
+                       vcov = vcovHC(mod.toadjust, type=robust.se)
+              )
+
+            })
+          
+          models.tidy <-
+            lapply(model.runs.robust, tidy)
+          
+        } else {  # If neither of these just calculates from the main models: 
+          
+          # Gets tidied output (data frame) for concatenation:
+          models.tidy <-
+            lapply(model.runs, tidy)
         }
         
+        
+        
+        
+        
         # Set names:
-        names(model.runs) <- formula.names
-        names(models.tidy) <- formula.names
-
+        names(model.runs) <- full.names
+        names(models.tidy) <- full.names
+        
+        # Prepares for duplicated runs where subsetting or weighting was done:
+        multiple <- length(subsettings) * length(weight.frame)
+        
         # Makes model output:
-        models.df <- data.frame(formulas = formula.names,
-                             stringsAsFactors = FALSE)
-
+        models.df <- data.frame(formulas = rep(formula.names, multiple),
+                                stringsAsFactors = FALSE)
+        
         # ADD TREATMENT EFFECT RESULTS TO DATA FRAME:
         # Estimate:
         models.df$estimate <-
           sapply(models.tidy, function(x){
             x[x$term %in% treatment,]$estimate
-            })
-
+          })
+        
         # Standard error:
         models.df$std.error <-
           sapply(models.tidy, function(x){
             x[x$term %in% treatment,]$std.error
-            })
-
+          })
+        
         # p-value:
         models.df$p.value <-
           sapply(models.tidy,
-             function(x){x[x$term %in% treatment,]$p.value})
-
+                 function(x){x[x$term %in% treatment,]$p.value})
+        
         # Boolean indicating significance
         models.df$significant <-
           models.df$p.value <= critical.value
-
+        
         # ADD RESULTS FOR EACH COVARIATE SET:
         # (pulls out estimates for the specific covariate in the
         # covariate class as named:)
@@ -184,7 +343,7 @@ s.curve <-
               } else {
                 NA
               }})})
-
+        
         # Standard error:
         models.df[paste0(names(cov.list), ".se")] <-
           lapply(names(cov.list), function(x){
@@ -194,7 +353,7 @@ s.curve <-
               } else {
                 NA
               }})})
-
+        
         # p-values
         models.df[paste0(names(cov.list), ".pval")] <-
           lapply(names(cov.list), function(x){
@@ -204,19 +363,18 @@ s.curve <-
               } else {
                 NA
               }})})
-
+        
         # Boolean for significance
         models.df[paste0(names(cov.list), ".sig")] <-
           lapply(models.df[paste0(names(cov.list), ".pval")],
                  function(x){
                    x <= critical.value
                  })
-
+        
         # FINAL STUFF--FIT, SEARCHING:
-        # AIC for each model:
-        models.df$AIC <- sapply(model.runs, AIC)
-
-
+        # models.df$AIC <- sapply(model.runs, AIC)
+        
+        
         # Boolean indicating which models contain which variables:
         # (individual predictor/outcomes, not clusters)
         models.df[vars.list] <-
@@ -226,34 +384,88 @@ s.curve <-
             apply(mod.grid.all, 1, FUN=function(z){
               v %in% z
             })})
-
+        
+        if (!is.null(subsets) & !is.null(weights)){
+          
+          weight.subset.index <- 
+            expand.grid(
+              weights.names, 
+              subset.names,
+              stringsAsFactors = FALSE
+            )
+          
+          models.df[subset.names] <-
+            lapply(subset.names, function(x){
+              # repeats true/falses based on whether it matches the index above
+              do.call(rep,
+                      list(
+                      c(x == weight.subset.index[[2]]),
+                        each = length(formulas)
+                      ))
+            })
+          
+          models.df[weights.names] <-
+            lapply(weights.names, function(x){
+              # repeats true/falses based on whether it matches the index above
+              do.call(rep,
+                      list(
+                        c(x == weight.subset.index[[1]]),
+                        each = length(formulas)
+                      ))
+            })
+          
+        }
+        
+        if (!is.null(subsets) & is.null(weights)){
+          
+          models.df[names(subsettings)] <-
+            lapply(names(subsettings), function(x){
+              # repeats true/falses based on whether it matches the index above
+              rep(x == names(subsettings), each = length(formulas))
+            })
+          
+        }
+        
+        if (is.null(subsets) & !is.null(weights)){
+          
+          models.df[names(weight.frame)] <-
+            lapply(names(weight.frame), function(x){
+              # repeats true/falses based on whether it matches the index above
+              rep(x == names(weight.frame), each = length(formulas))
+            })
+          
+        }
+        
+        
+        
+        
         # OUTPUT:
         # a list containing both the models
         if (full.models == TRUE){
-        list(
-          models.df,
-          models.tidy,
-          model.runs
-        )
-      } else {
+          list(
+            models.df,
+            models.tidy,
+            model.runs
+          )
+        } else {
           models.df
+        }
       }
-      }
-
+    
     # RUN MAIN SPECIFICATION CURVE ----
     output[c("results", "tidy.models", "raw.models")] <-
       curveRunner(f.data=dat, full.models = TRUE)
-
-
-
+    
+    
+    
     # RUN PERMUTATION TEST ----
-
+    
     if(is.numeric(permutations)){
-
+      
       # Save a nested list of individual data frames
       # like the one we just made above:
       perm.dat <- dat
-
+      set.seed(2018)
       output$perm.test <-
         replicate(
           # number of permutations
@@ -268,43 +480,43 @@ s.curve <-
                 treatment,
                 function(tvar){
                   perm.dat[[tvar]][new.order]
-                  })
-
+                })
+            
             # run model for that permutation:
             curveRunner(f.data = perm.dat,
                         full.models = FALSE)
           },
           simplify=FALSE)
     } #
-
-      # SIGNIFICANCE RATES ----
-
-      # Calculate number and percent significant across types:
-      output$n.sig <- sum(output$results$significant)
-      output$prop.sig <- mean(output$results$significant)
-
-      # Significance rates for permutation test code
-      if(is.numeric(permutations)){
-
+    
+    # SIGNIFICANCE RATES ----
+    
+    # Calculate number and percent significant across types:
+    output$n.sig <- sum(output$results$significant)
+    output$prop.sig <- mean(output$results$significant)
+    
+    # Significance rates for permutation test code
+    if(is.numeric(permutations)){
+      
       # Get proportion significance across all permuted models:
       output$perm.prop.sig <-
         sapply(
           output$perm.test,
           function(x){mean(x$significant)}
         )
-
+      
       # Mean significance rate across all models:
       output$perm.prop.sig.mean <-
         mean(output$perm.prop.sig)
-
+      
       # How many are more significant than the main set:
       output$perm.sig.compare <-
         output$prop.sig >= output$perm.prop.sig
       output$perm.sig.compare.mean <-
         mean(output$perm.sig.compare)
-
+      
       # WITHIN SPECIFICATION COMPARISONS ----
-
+      
       # Obtain matrix of estimates by specification
       estimate.matrix <-
         sapply(
@@ -312,7 +524,7 @@ s.curve <-
           function(x){x$estimate},
           simplify = "matrix"
         )
-
+      
       # Obtain quantiles of estimate from each speficiation:
       output$results[c("perm.lower", "perm.median", "perm.upper")] <-
         t(
@@ -322,27 +534,27 @@ s.curve <-
             quantile,
             probs = c(.025, .50, .975)
           ))
-
-
+      
+      
       # Obtain P-value from exact test
       # (comparing absolute values for two-tailed based on CLT,
       # so as to make it direction-agnostic.  Could do better, probably).
       output$results$perm.p.value <-
-          sapply(
-            1:n.formulas,
-            function(n){
-              # What percentage of estimates are at least as extreme
-              # as the obtained one?
-              mean(abs(estimate.matrix[n,]) >=
-                     abs(output$results$estimate[n]))
-            })
-
+        sapply(
+          1:n.formulas,
+          function(n){
+            # What percentage of estimates are at least as extreme
+            # as the obtained one?
+            mean(abs(estimate.matrix[n,]) >=
+                   abs(output$results$estimate[n]))
+          })
+      
       # Critical value test, boolean:
       output$results$perm.significant <-
         output$results$perm.p.value < critical.value
-
+      
     }  # End permutation test code
-
+    
     # FINAL OUTPUT: ----
     # extra diagnostic information:
     output$formulas <- formula.names
@@ -358,16 +570,16 @@ s.curve <-
       output$ordering$perm.p.value <-
         order(output$results$perm.p.value)
     }
-
+    
     # print summary to screen for easy reading:
     if(cat.percent){
-    cat(
-      paste0(
-        "Percentage of significant p-values in treatment term", "\n",
-               "across all models is ",
-        round(100*output$prop.sig, 2), "%"))
+      cat(
+        paste0(
+          "Percentage of significant p-values in treatment term", "\n",
+          "across all models is ",
+          round(100*output$prop.sig, 2), "%"))
     }
-
+    
     # Print permutation summary to screen for easy reading:
     if(cat.percent & is.numeric(permutations)){
       cat(
@@ -381,11 +593,11 @@ s.curve <-
           "(mean significance rate: ",
           round(100*output$perm.prop.sig.mean, 2), "%)",
           "\n"
-          ))
+        ))
     }
-
+    
     output
-
+    
   }
 
 
@@ -399,8 +611,8 @@ s.curve.plot <-
     title = NULL,
     plot.order = NULL,
     decreasing = TRUE
-    ){
-
+  ){
+    
     # Sort by the provided metric:
     if(!is.null(plot.order)){
       new.order <- order(data$results[plot.order], decreasing = decreasing)
@@ -408,7 +620,7 @@ s.curve.plot <-
     } else {
       plot.dat <- data$results
     }
-
+    
     # plot
     newplot <-
       ggplot(plot.dat,
@@ -443,8 +655,8 @@ s.curve.plot <-
 
 
 
-s.curve.table <- function(scurve, ordering = "estimate"){
-
+s.curve.table <- function(scurve, ordering = NULL){
+  
   table.displaylist <-
     if(is.null(scurve$permutations)){
       c("formulas", "estimate", "std.error", "p.value")
@@ -452,12 +664,12 @@ s.curve.table <- function(scurve, ordering = "estimate"){
       c("formulas", "estimate", "std.error", "p.value",
         "perm.lower", "perm.median", "perm.upper")
     }
-  s.table <- data.frame(model = 1:scurve$n.formulas)
+  s.table <- data.frame(model = 1:length(scurve$tidy.models))
   s.table[table.displaylist] <-
     scurve$results[
-      order(scurve$results[[ordering]], decreasing = TRUE),
+      # order(scurve$results[[ordering]], decreasing = TRUE),
       table.displaylist
       ]
-
+  
   s.table
 }

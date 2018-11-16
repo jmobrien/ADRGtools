@@ -535,16 +535,16 @@ curveRunner <-
                mod.row["n"] <- mod.row$df + mod.row$df.residual
                
                # Variables indicating estimates for each variable:
-               mod.row[paste0(model.tidy$term[-1], ".est")] <- 
-                 as.list(model.tidy$estimate[-1])
+               mod.row[paste0(model.tidy$term, ".est")] <- 
+                 as.list(model.tidy$estimate)
 
                # Variables indicating SE's for each included variable:
-               mod.row[paste0(model.tidy$term[-1], ".se")] <- 
-                 as.list(model.tidy$std.error[-1])
+               mod.row[paste0(model.tidy$term, ".se")] <- 
+                 as.list(model.tidy$std.error)
 
                # Variables indicating p.vals for each included variable:
-               mod.row[paste0(model.tidy$term[-1], ".pval")] <- 
-                 as.list(model.tidy$p.value[-1])
+               mod.row[paste0(model.tidy$term, ".pval")] <- 
+                 as.list(model.tidy$p.value)
                
                if(inc.tidy.models) {
                  mod.row$tidy.models <- list(model.tidy)

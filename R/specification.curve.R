@@ -645,7 +645,18 @@ s.curve.table <- function(scurve, ordering = NULL){
       c("formulas", "estimate", "std.error", "p.value",
         "perm.lower", "perm.median", "perm.upper")
     }
-  s.table <- data.frame(model = 1:length(scurve$tidy.models))
+  
+  if(!is.na(scurve$subsettings)){
+    table.displaylist <-
+      c("subset.used", table.displaylist)
+  }
+  
+  if(!is.na(scurve$weightings)){
+    table.displaylist <-
+      c("weights.used", table.displaylist)
+  }
+  
+  s.table <- data.frame(model = 1:scurve$n.specifications)
   s.table[table.displaylist] <-
     scurve$results[
       # order(scurve$results[[ordering]], decreasing = TRUE),

@@ -146,7 +146,7 @@ s.curve <-
       length(s.curve.mod$formulas)
     
     # Initialize names of everything: 
-    full.names <- formula.names
+    full.names <- s.curve.mod$formula.names
 
     # Make the data subsets:
     if (!is.null(subsets)){
@@ -220,18 +220,21 @@ s.curve <-
     }
     
     s.curve.mod$spec.list <- 
-      expand.grid(
-        formulas,
-        names(weightings),
-        names(subsettings),
-        stringsAsFactors = FALSE
+      setNames(
+        expand.grid(
+          formulas,
+          names(weightings),
+          names(subsettings),
+          stringsAsFactors = FALSE
+        ),
+        c("formula", "weights", "subset")
       )
       
     
     if(model.only) return(s.curve.mod)
 
         
-  
+  # TODO: fix what's below.
     
     # RUN MAIN SPECIFICATION CURVE ----
     output[c("results", "tidy.models", "raw.models")] <-

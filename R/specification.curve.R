@@ -228,7 +228,7 @@ s.curve <-
       )
       
     
-    
+    if(model.only) return(s.curve.mod)
 
         
   

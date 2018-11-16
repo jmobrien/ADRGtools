@@ -220,6 +220,8 @@ s.curve <-
       weightings <- setNames(NA, NA)
     }
     
+    s.curve.mod$n.specifications <- length(full.names)
+    
     s.curve.mod$spec.list <- 
       setNames(
         expand.grid(

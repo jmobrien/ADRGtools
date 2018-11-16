@@ -573,9 +573,10 @@ curveRunner <-
       models.df$permutation.index <- perm.index
     }
 
-models.df
-
-
+    s.curve.model$results <-
+      models.df
+    
+    s.curve.model
 
   }
 

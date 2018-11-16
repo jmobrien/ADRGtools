@@ -34,7 +34,8 @@ s.curve <-
     
     mod.type = lm, #takes lm, glm (NOT YET IMPLEMENTED)
     mod.family = NULL, # if family needed (NOT YET IMPLEMENTED)
-    critical.value = .05,
+    alpha = .05, # plausible alpha value (if one tailed, will test against p <= .1 on that side)
+    tail = NULL, # One tailed test?  Takes "upper" and "lower"
     subsets = NULL, # runs subsets of data based on the specifications listed here (vector of conditions)
     subsets.exclude = TRUE, # if subsets added, includes an un-subsetted version
     weights = NULL, # vector of weight variables names to add to runs, re-named if desired
@@ -44,7 +45,9 @@ s.curve <-
     cluster.var = NULL, # Variable on which to cluster
     robust.se = NULL, # robustness adjustment-provide parameters in capital letters e.g. "HC1"
     cat.percent = TRUE, # displays summary output of % significant at the end of the data for convenience in interactive mode. Set to false if using as a part of an Rmarkdown file.
-    keep.full.models = TRUE # Set to false for large model samples
+    keep.tidy.models = TRUE, # Set to false for large model samples
+    keep.full.models = FALSE, # Set to false for large model samples
+    model.only = FALSE # Outputs the model for later use, rather than running
   ) {
     
     # Type of model:
@@ -56,8 +59,22 @@ s.curve <-
     require(broom)
     # require(ggplot2)
     
-    # Initialize output list ----
-    output <- list()
+    # Initialize model list ----
+    s.curve.mod <- 
+      list(
+        dat = dat,
+        treatment = treatment,
+        outcomes = outcomes,
+        alpha = alpha,
+        tail = tail,
+        mod.type = mod.type,
+        cluster = cluster,
+        cluster.var = cluster.var,
+        robust.se = robust.se,
+        permutations = permutations,
+        keep.tidy.models = keep.tidy.models,
+        keep.full.models = keep.full.models
+      )
     
     # Construction of formulas ----
     
@@ -114,26 +131,25 @@ s.curve <-
     
     
     # Adds left-hand side (outcomes), make formulas:
-    formulas <-
+    s.curve.mod$formulas <-
       lapply(
         as.vector(outer(outcomes, formulas.rhs,
                         paste, sep=" ~ ")),
         as.formula)
     
     # Converts formula names to character vector:
-    formula.names <- sapply(formulas, deparse, width.cutoff = 500)    # Length of specification list:
-    n.formulas <- length(formulas)
+    s.curve.mod$formula.names <- 
+      sapply(s.curve.mod$formulas, deparse, width.cutoff = 500)    
     
-    # Sets names of everything 
+    # Length of formula list:
+    s.curve.mod$n.formulas <- 
+      length(s.curve.mod$formulas)
     
+    # Initialize names of everything: 
     full.names <- formula.names
-    
-    
-    
-    # Make the data subsets
-    
+
+    # Make the data subsets:
     if (!is.null(subsets)){
-      
       subsettings <-
         do.call(
           cbind.data.frame,
@@ -145,311 +161,77 @@ s.curve <-
       names(subsettings) <- subset.names
       
       if (subsets.exclude) {
-        
           subsettings <- 
           cbind.data.frame(
             setNames(data.frame(TRUE), "SUBSET: ALL DATA"),
             subsettings
           )
         
-
         subset.names <- names(subsettings)
-        
       }
       
+      
+      # Update the full names
       full.names <-
         as.vector(outer(full.names, subset.names,
                         paste, sep=", "))
+      
+      s.curve.mod$n.subsettings <- length(subset.names)
+      s.curve.mod$subsettings <- subsettings
+      s.curve.mod$subset.names <- subset.names
     } else {
-      subsettings <- TRUE
+      # Just have a non-subsetting subset:
+      subsettings <- setNames(NA, NA)
     }
     
-    # Make the data weights
-    
+    # Make the data weights:
     if (!is.null(weights)){
+      # Make a vector of names for the weights used based on the variables:
+      weights.names <- paste0("WEIGHT: ", weights)
       
-      if (is.null(names(weights))){
-        
-        # Make a vector of names for the weights used based on the variables:
-        weights.names <- paste0("WEIGHT: ", weights)
-        
-      } else {
-        
-        # make a vector using the existing names:
-        weights.names <- 
-          ifelse(names(weights) != "", 
-                 paste0("WEIGHT: ", names(weights)), 
-                 paste0("WEIGHT: ", weights)
-          )
-      }
-      
-      weight.frame <- 
+      weightings <- 
         do.call(
           cbind.data.frame,
           lapply(weights, function(wset){
             dat[wset]
-          })
-        )
+          }))
       
-      names(weight.frame) <- weights.names          
+      names(weightings) <- weights.names          
       
       if (weights.exclude) {
-        
-        weight.frame <- 
+        weightings <- 
           cbind.data.frame(
-            rep(1, length(weight.frame)),
-            weight.frame
+            setNames(data.frame(1), "WEIGHT: NONE"),
+            weightings
           )
-        
-        weights.names <- c("WEIGHT: NONE", weights.names)
-        names(weight.frame) <- weights.names
+        weights.names <- names(weightings)
       }
       
       full.names <-
         as.vector(outer(full.names, weights.names,
                         paste, sep=", "))
       
+      s.curve.mod$weightings <- weightings
+      s.curve.mod$weights.names <- weights.names
+      s.curve.mod$n.weightings <- length(weights.names)
+      
     } else {
-      weight.frame <- NA
+      weightings <- setNames(NA, NA)
     }
     
+    s.curve.mod$spec.list <- 
+      expand.grid(
+        formulas,
+        names(weightings),
+        names(subsettings),
+        stringsAsFactors = FALSE
+      )
+      
     
-    # Function for running models ----
-    #(used here, and in permutation form below)
-    curveRunner <-
-      function(
-        f.data,
-        full.models=FALSE
-      ){
-        # Runs models using the supplied model type, puts in list
-        # (Needs more work to support multiple types of models)
-        
-        
-        model.runs <-
-          unlist(unlist(
-            lapply(subsettings, function(sub){
-              lapply(weight.frame, function(w.frame){
-                lapply(formulas, function(forms){
-                  
-                  FUN <- match.fun(mod.type)
+    
 
-                  params <- 
-                    list(
-                      formula = forms
-                    )
-                  
-                  if (length(w.frame) > 1 || !is.na(w.frame)){
-                    f.data$weightstouse <- w.frame
-                    params$weights <- f.data[sub,][["weightstouse"]]
-                  }
-                  
-                    
-                  params$data <- f.data[sub,]
-                  
-                  do.call(FUN, params)
-                  
-                })
-              })
-            })
-      , recursive = FALSE)
-      , recursive = FALSE)
         
-        if(cluster) {
-          
-          # Load relevant packages:
-          require(sandwich)
-          require(lmtest)
-          
-          model.runs.cluster <-
-            lapply(model.runs, function(mods.tocluster){
-              cl(dat = f.data, fm = mods.tocluster, cluster = f.data[[cluster.var]])
-            })
-          
-          models.tidy <-
-            lapply(model.runs.cluster, tidy)
-          
-        } else if(!is.null(robust.se)) {
-          
-          # Load relevant packages:
-          require(sandwich)
-          require(lmtest)
-          
-          # Do standard error adjustment as called for by robust.se:
-          model.runs.robust <-
-            lapply(model.runs, function(mod.toadjust){
-              coeftest(mod.toadjust, 
-                       vcov = vcovHC(mod.toadjust, type=robust.se)
-              )
-
-            })
-          
-          models.tidy <-
-            lapply(model.runs.robust, tidy)
-          
-        } else {  # If neither of these just calculates from the main models: 
-          
-          # Gets tidied output (data frame) for concatenation:
-          models.tidy <-
-            lapply(model.runs, tidy)
-        }
-        
-        
-        
-        
-        
-        # Set names:
-        names(model.runs) <- full.names
-        names(models.tidy) <- full.names
-        
-        # Prepares for duplicated runs where subsetting or weighting was done:
-        multiple <- length(subsettings) * length(weight.frame)
-        
-        # Makes model output:
-        models.df <- data.frame(formulas = rep(formula.names, multiple),
-                                stringsAsFactors = FALSE)
-        
-        # ADD TREATMENT EFFECT RESULTS TO DATA FRAME:
-        # Estimate:
-        models.df$estimate <-
-          sapply(models.tidy, function(x){
-            x[x$term %in% treatment,]$estimate
-          })
-        
-        # Standard error:
-        models.df$std.error <-
-          sapply(models.tidy, function(x){
-            x[x$term %in% treatment,]$std.error
-          })
-        
-        # p-value:
-        models.df$p.value <-
-          sapply(models.tidy,
-                 function(x){x[x$term %in% treatment,]$p.value})
-        
-        # Boolean indicating significance
-        models.df$significant <-
-          models.df$p.value <= critical.value
-        
-        # ADD RESULTS FOR EACH COVARIATE SET:
-        # (pulls out estimates for the specific covariate in the
-        # covariate class as named:)
-        # Estimate:
-        models.df[paste0(names(cov.list), ".est")] <-
-          lapply(names(cov.list), function(x){
-            sapply(models.tidy, function(y){
-              if (any(y$term %in% cov.list[[x]])) {
-                y[y$term %in% cov.list[[x]],]$estimate
-              } else {
-                NA
-              }})})
-        
-        # Standard error:
-        models.df[paste0(names(cov.list), ".se")] <-
-          lapply(names(cov.list), function(x){
-            sapply(models.tidy, function(y){
-              if (any(y$term %in% cov.list[[x]])) {
-                y[y$term %in% cov.list[[x]],]$std.error
-              } else {
-                NA
-              }})})
-        
-        # p-values
-        models.df[paste0(names(cov.list), ".pval")] <-
-          lapply(names(cov.list), function(x){
-            sapply(models.tidy, function(y){
-              if (any(y$term %in% cov.list[[x]])) {
-                y[y$term %in% cov.list[[x]],]$p.value
-              } else {
-                NA
-              }})})
-        
-        # Boolean for significance
-        models.df[paste0(names(cov.list), ".sig")] <-
-          lapply(models.df[paste0(names(cov.list), ".pval")],
-                 function(x){
-                   x <= critical.value
-                 })
-        
-        # FINAL STUFF--FIT, SEARCHING:
-        # models.df$AIC <- sapply(model.runs, AIC)
-        
-        
-        # Boolean indicating which models contain which variables:
-        # (individual predictor/outcomes, not clusters)
-        models.df[vars.list] <-
-          lapply(vars.list, function(v){
-            # Checks against existince in full element grid
-            # (created earlier outside of function)
-            apply(mod.grid.all, 1, FUN=function(z){
-              v %in% z
-            })})
-        
-        if (!is.null(subsets) & !is.null(weights)){
-          
-          weight.subset.index <- 
-            expand.grid(
-              weights.names, 
-              subset.names,
-              stringsAsFactors = FALSE
-            )
-          
-          models.df[subset.names] <-
-            lapply(subset.names, function(x){
-              # repeats true/falses based on whether it matches the index above
-              do.call(rep,
-                      list(
-                      c(x == weight.subset.index[[2]]),
-                        each = length(formulas)
-                      ))
-            })
-          
-          models.df[weights.names] <-
-            lapply(weights.names, function(x){
-              # repeats true/falses based on whether it matches the index above
-              do.call(rep,
-                      list(
-                        c(x == weight.subset.index[[1]]),
-                        each = length(formulas)
-                      ))
-            })
-          
-        }
-        
-        if (!is.null(subsets) & is.null(weights)){
-          
-          models.df[names(subsettings)] <-
-            lapply(names(subsettings), function(x){
-              # repeats true/falses based on whether it matches the index above
-              rep(x == names(subsettings), each = length(formulas))
-            })
-          
-        }
-        
-        if (is.null(subsets) & !is.null(weights)){
-          
-          models.df[names(weight.frame)] <-
-            lapply(names(weight.frame), function(x){
-              # repeats true/falses based on whether it matches the index above
-              rep(x == names(weight.frame), each = length(formulas))
-            })
-          
-        }
-        
-        
-        
-        
-        # OUTPUT:
-        # a list containing both the models
-        if (full.models == TRUE){
-          list(
-            models.df,
-            models.tidy,
-            model.runs
-          )
-        } else {
-          models.df
-        }
-      }
+  
     
     # RUN MAIN SPECIFICATION CURVE ----
     output[c("results", "tidy.models", "raw.models")] <-
@@ -598,6 +380,185 @@ s.curve <-
     output
     
   }
+
+
+
+# curveRunner - processes s-curve objects ---------------------------------
+
+curveRunner <-
+  function(
+    s.curve.model,
+    inc.tidy.models = NULL,
+    inc.full.models = NULL,
+    perm.index = NULL
+  ){
+
+    dat <- s.curve.model$data
+    spec.list <- s.curve.model$spec.list
+    subsettings <- s.curve.model$subsettings
+    weightings <- s.curve.model$weightings
+    
+    if(is.null(inc.tidy.models)){
+      inc.tidy.models <- 
+        s.curve.model$keep.tidy.models
+    }
+    
+    if(is.null(inc.full.models)){
+      inc.tidy.models <- 
+        s.curve.model$keep.full.models
+    }
+    
+    models.df <-
+      lapply(seq_len(nrow(spec.list)), 
+             # indexing function
+             function(ind){
+               
+               # Initialize output:
+               mod.row <- 
+                 data.frame(
+                   formulas = spec.list[ind, "formula"],
+                   stringsAsFactors = FALSE
+                 ) 
+               
+               # Initialize model parameters:
+               params <- 
+                 list(
+                   formula = spec.list[ind, "formula"]
+                 )
+               
+               
+               weight.name <- spec.list[ind, "weights"]
+               subset.name <- spec.list[ind, "subset"]
+               
+               # Subsetting setup:
+               if (!is.na(subset.name)){
+                 # Establish the subset:
+                 sub <- subsettings[[subset.name]]
+                 # note it in the output:
+                 mod.row$subset.used <- subset.name
+               } else {
+                 # Just keep everything with this:
+                 sub <- TRUE
+               }
+               
+               # Weighting setup:
+               if (!is.na(weights.name)){
+                 # Add the weight variable
+                 params$weights <- 
+                   weightings[sub, weights.name]
+                 # note it in the output:
+                 mod.row$weights.used <- weights.name
+               }
+               
+               # Add in data:
+               params$data <- dat[sub,]
+               
+               model.run <- 
+                 do.call(FUN, params)
+               
+               # Get out model features:
+               model.glance <-
+                   glance(model.run)
+               
+               # Clustering the model:
+               if(s.curve.model$cluster) {
+                 
+                 # Load relevant packages:
+                 require(sandwich, quietly = TRUE)
+                 require(lmtest, quietly = TRUE)
+                 
+                 model.run.cluster <-
+                   cl(dat = f.data, fm = model.run, cluster = f.data[[cluster.var]])
+                 
+                 model.tidy <-
+                   tidy(model.run.cluster)
+                
+                 
+                 
+               } else if(!is.null(s.curve.model$robust.se)) {
+                 
+                 # Load relevant packages:
+                 require(sandwich, quietly = TRUE)
+                 require(lmtest, quietly = TRUE)
+                 
+                 # Do standard error adjustment as called for by robust.se:
+                 model.run.robust <- 
+                   coeftest(model.run, 
+                            vcov = vcovHC(model.run, 
+                                          type=curve.model$robust.se)
+                   )
+                 
+                 model.tidy <-
+                   tidy(model.run.robust)
+                 
+                 
+               } else {  
+                 # If neither of these, just calculate from the main model: 
+                 
+                 # Gets tidied output (data frame) for concatenation:
+                 model.tidy <-
+                   tidy(model.runs)
+                 
+                 
+               }
+               
+               mod.row[c("estimate", "std.error", "statistic", "p.value")] <- 
+                 model.tidy[model.tidy$term %in% s.curve.model$treatment, 
+                            c("estimate", "std.error", "statistic", "p.value")]
+               
+               mod.row$significant <- 
+                 if (is.null(s.curve.model$tail)){
+                   mod.row$p.value <= s.curve.model$alpha
+                 } else if (s.curve.model$tail == "upper") {
+                   mod.row$p.value <= 2*s.curve.model$alpha &&
+                     mod.row$estimate > 0
+                 } else {
+                   mod.row$p.value <= 2*s.curve.model$alpha &&
+                     mod.row$estimate < 0
+                 }
+               
+               # Model characteristics
+               mod.row[c("r.squared", "adj.r.squared", "df", "df.residual")] <-
+                model.glance[c("r.squared", "adj.r.squared", "df", "df.residual")]
+               
+               # Model N 
+               mod.row["n"] <- mod.row$df + mod.row$df.residual
+               
+               # Variables indicating estimates for each variable:
+               mod.row[paste0(model.tidy$term[-1], ".est")] <- 
+                 as.list(model.tidy$estimate[-1])
+
+               # Variables indicating SE's for each included variable:
+               mod.row[paste0(model.tidy$term[-1], ".se")] <- 
+                 as.list(model.tidy$std.error[-1])
+
+               # Variables indicating p.vals for each included variable:
+               mod.row[paste0(model.tidy$term[-1], ".pval")] <- 
+                 as.list(model.tidy$p.value[-1])
+               
+               if(inc.tidy.models) {
+                 mod.row$tidy.models <- list(model.tidy)
+               }
+               
+               if(inc.full.models) {
+                 mod.row$full.models <- list(model.run)
+               }
+               
+             }) %>% 
+      # Bind it up together as a single data.frame
+      bind_rows
+
+    # Mark which permutation this data is:
+    if(!is.null(perm.index)){
+      models.df$permutation.index <- perm.index
+    }
+
+models.df
+
+
+
+  }
+
 
 
 # Plotting tool for s.curve output ----------------------------------------

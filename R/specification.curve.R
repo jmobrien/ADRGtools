@@ -44,6 +44,7 @@ s.curve <-
     cluster.var = NULL, # Variable on which to cluster
     robust.se = NULL, # robustness adjustment-provide parameters in capital letters e.g. "HC1"
     cat.percent = TRUE, # displays summary output of % significant at the end of the data for convenience in interactive mode. Set to false if using as a part of an Rmarkdown file.
+    keep.full.models = TRUE # Set to false for large model samples
   ) {
     
     # Type of model:
@@ -137,25 +138,23 @@ s.curve <-
         do.call(
           cbind.data.frame,
           lapply(subsets, function(singlesubset){
-            with(dat, {
-              eval(parse(text = singlesubset))
-            })
-          })
-        )
+            with(dat, eval(parse(text = singlesubset)))
+          }))
       
       subset.names <- paste0("SUBSET: ", subsets)
-      
       names(subsettings) <- subset.names
       
       if (subsets.exclude) {
         
-        nosubset <- rep(TRUE, nrow(dat))
+          subsettings <- 
+          cbind.data.frame(
+            setNames(data.frame(TRUE), "SUBSET: ALL DATA"),
+            subsettings
+          )
         
-        subsettings <- cbind(nosubset, subsettings)
+
+        subset.names <- names(subsettings)
         
-        subset.names <- c("SUBSET: ALL DATA", subset.names)
-        
-        names(subsettings) <- subset.names
       }
       
       full.names <-

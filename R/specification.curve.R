@@ -26,12 +26,13 @@ s.curve <-
     outcomes, # vector of outcome variables
     treatment, # vector of treatment variables
     cov.list, # named list, sets of covariates / moderators - write moderators as "var1:var2"
-    # eg: cov.list = list(gender = c("gender.roster", "gender.selfreport"),
+              # eg: cov.list = list(gender = c("gender.roster", "gender.selfreport"),
     
     no.cov.exclude = NULL, # Will add a model where each item of the list above is missing,
-    # unless specified here
-    dat, # datafile
-    
+                           # unless specified here
+    extra.models = NULL, # Models written literally; will be appended to the set 
+                         # (still crossed against subsets and weights)
+    dat, # a dataframe
     mod.type = lm, #takes lm, glm (NOT YET IMPLEMENTED)
     mod.family = NULL, # if family needed (NOT YET IMPLEMENTED)
     alpha = .05, # plausible alpha value (if one tailed, will test against p <= .1 on that side)
@@ -138,6 +139,12 @@ s.curve <-
                         paste, sep=" ~ ")),
         as.formula)
     
+    if(!is.null(extra.models)){
+      s.curve.mod$formulas <- 
+        c(s.curve.mod$formulas, 
+          lapply(extra.models, as.formula)
+          )
+    }
     # Converts formula names to character vector:
     s.curve.mod$formula.names <- 
       sapply(s.curve.mod$formulas, deparse, width.cutoff = 500)    

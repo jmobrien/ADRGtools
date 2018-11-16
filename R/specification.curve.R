@@ -68,6 +68,7 @@ s.curve <-
         alpha = alpha,
         tail = tail,
         mod.type = mod.type,
+        mod.type.char = model.type,
         cluster = cluster,
         cluster.var = cluster.var,
         robust.se = robust.se,
@@ -222,7 +223,7 @@ s.curve <-
     s.curve.mod$spec.list <- 
       setNames(
         expand.grid(
-          formulas,
+          s.curve.mod$formulas,
           names(weightings),
           names(subsettings),
           stringsAsFactors = FALSE
@@ -396,7 +397,7 @@ curveRunner <-
     perm.index = NULL
   ){
 
-    dat <- s.curve.model$data
+    dat <- s.curve.model$dat
     spec.list <- s.curve.model$spec.list
     subsettings <- s.curve.model$subsettings
     weightings <- s.curve.model$weightings
@@ -407,7 +408,7 @@ curveRunner <-
     }
     
     if(is.null(inc.full.models)){
-      inc.tidy.models <- 
+      inc.full.models <- 
         s.curve.model$keep.full.models
     }
     
@@ -419,18 +420,23 @@ curveRunner <-
                # Initialize output:
                mod.row <- 
                  data.frame(
-                   formulas = spec.list[ind, "formula"],
+                   model.type = 
+                     paste0(s.curve.model$mod.type.char,
+                            s.curve.model$robust.se),
                    stringsAsFactors = FALSE
                  ) 
+               
+               mod.row$formulas <-  
+                 spec.list[["formula"]][ind]
                
                # Initialize model parameters:
                params <- 
                  list(
-                   formula = spec.list[ind, "formula"]
+                   formula = spec.list[["formula"]][[ind]]
                  )
                
                
-               weight.name <- spec.list[ind, "weights"]
+               weights.name <- spec.list[ind, "weights"]
                subset.name <- spec.list[ind, "subset"]
                
                # Subsetting setup:
@@ -443,6 +449,7 @@ curveRunner <-
                  # Just keep everything with this:
                  sub <- TRUE
                }
+               
                
                # Weighting setup:
                if (!is.na(weights.name)){
@@ -457,7 +464,7 @@ curveRunner <-
                params$data <- dat[sub,]
                
                model.run <- 
-                 do.call(FUN, params)
+                 do.call(lm, params)
                
                # Get out model features:
                model.glance <-
@@ -488,7 +495,7 @@ curveRunner <-
                  model.run.robust <- 
                    coeftest(model.run, 
                             vcov = vcovHC(model.run, 
-                                          type=curve.model$robust.se)
+                                          type=s.curve.model$robust.se)
                    )
                  
                  model.tidy <-
@@ -500,7 +507,7 @@ curveRunner <-
                  
                  # Gets tidied output (data frame) for concatenation:
                  model.tidy <-
-                   tidy(model.runs)
+                   tidy(model.run)
                  
                  
                }
@@ -547,9 +554,10 @@ curveRunner <-
                  mod.row$full.models <- list(model.run)
                }
                
+              mod.row 
              }) %>% 
       # Bind it up together as a single data.frame
-      bind_rows
+             {do.call(bind_rows, .)}
 
     # Mark which permutation this data is:
     if(!is.null(perm.index)){

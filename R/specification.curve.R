@@ -26,12 +26,12 @@ s.curve <-
     outcomes, # vector of outcome variables
     treatment, # vector of treatment variables
     cov.list, # named list, sets of covariates / moderators - write moderators as "var1:var2"
-              # eg: cov.list = list(gender = c("gender.roster", "gender.selfreport"),
+    # eg: cov.list = list(gender = c("gender.roster", "gender.selfreport"),
     
     no.cov.exclude = NULL, # Will add a model where each item of the list above is missing,
-                           # unless specified here
+    # unless specified here
     extra.models = NULL, # Models written literally; will be appended to the set 
-                         # (still crossed against subsets and weights)
+    # (still crossed against subsets and weights)
     dat, # a dataframe
     mod.type = lm, #takes lm, glm (NOT YET IMPLEMENTED)
     mod.family = NULL, # if family needed (NOT YET IMPLEMENTED)
@@ -40,6 +40,7 @@ s.curve <-
     subsets = NULL, # runs subsets of data based on the specifications listed here (vector of conditions)
     subsets.exclude = TRUE, # if subsets added, includes an un-subsetted version
     weights = NULL, # vector of weight variables names to add to runs, re-named if desired
+    weights.recalc = NULL, # Vector: function that can re-caculate the weights at each subset
     weights.exclude = TRUE, # Includes an unweighted version where weights added 
     permutations = NULL, # number of permutations for p-curve
     cluster = FALSE, # Cluster robust standard errors
@@ -48,7 +49,8 @@ s.curve <-
     cat.percent = TRUE, # displays summary output of % significant at the end of the data for convenience in interactive mode. Set to false if using as a part of an Rmarkdown file.
     keep.tidy.models = TRUE, # Set to false for large model samples
     keep.full.models = FALSE, # Set to false for large model samples
-    model.only = FALSE # Outputs the model for later use, rather than running
+    model.only = FALSE, # Outputs the model for later use, rather than running
+    perm.pvalues = FALSE # calculates permutation test-based pvalues (if permutation test active)
   ) {
     
     # Type of model:
@@ -68,8 +70,8 @@ s.curve <-
         outcomes = outcomes,
         alpha = alpha,
         tail = tail,
-        mod.type = mod.type,
-        mod.type.char = model.type,
+        mod.type = model.type,
+        mod.family = mod.family,
         cluster = cluster,
         cluster.var = cluster.var,
         robust.se = robust.se,
@@ -143,7 +145,7 @@ s.curve <-
       s.curve.mod$formulas <- 
         c(s.curve.mod$formulas, 
           lapply(extra.models, as.formula)
-          )
+        )
     }
     # Converts formula names to character vector:
     s.curve.mod$formula.names <- 
@@ -155,7 +157,7 @@ s.curve <-
     
     # Initialize names of everything: 
     full.names <- s.curve.mod$formula.names
-
+    
     # Make the data subsets:
     if (!is.null(subsets)){
       subsettings <-
@@ -169,7 +171,7 @@ s.curve <-
       names(subsettings) <- subset.names
       
       if (subsets.exclude) {
-          subsettings <- 
+        subsettings <- 
           cbind.data.frame(
             setNames(data.frame(TRUE), "SUBSET: ALL DATA"),
             subsettings
@@ -239,17 +241,61 @@ s.curve <-
         ),
         c("formula", "weights", "subset")
       )
-      
+    
+    s.curve.mod$spec.list$specification.index <- 
+      seq_len(nrow(s.curve.mod$spec.list))
     
     if(model.only) return(s.curve.mod)
-
-        
-  # TODO: fix what's below.
+    
+    
+    
     
     # RUN MAIN SPECIFICATION CURVE ----
-    output[c("results", "tidy.models", "raw.models")] <-
-      curveRunner(f.data=dat, full.models = TRUE)
+    s.curve.mod$results <-
+      curveRunner(s.curve.mod)
     
+    
+    # Deal with Duplicates ----------------------------------------------------
+    
+    # Check for duplicated models, move to separate dataframe:
+    duplicates <- 
+      which(
+        duplicated(
+          lapply(s.curve.mod$results$final.specification, sort)
+        ))
+    
+    s.curve.mod$has.duplicates <- FALSE
+    
+    if(length(duplicates) > 0){
+      s.curve.mod$duplicated.models <-
+        s.curve.mod$results[duplicates,]
+      
+      s.curve.mod$results <-
+        s.curve.mod$results[-duplicates,]
+      
+      s.curve.mod$duplicate.specs <-
+        s.curve.mod$spec.list[duplicates,]
+      
+      s.curve.mod$spec.list <-
+        s.curve.mod$spec.list[-duplicates,]
+      
+      s.curve.mod$n.specifications.original <-
+        s.curve.mod$n.specifications
+      
+      s.curve.mod$n.specifications <- 
+        nrow(s.curve.mod$results)
+      
+      s.curve.mod$has.duplicates <- TRUE
+      
+      message("Duplicate models dropped, ", 
+              s.curve.mod$n.specifications.original, 
+              " now ",
+              s.curve.mod$n.specifications,
+              " (less ",
+              s.curve.mod$n.specifications.original - 
+                s.curve.mod$n.specifications,
+              ")")
+    }
     
     
     # RUN PERMUTATION TEST ----
@@ -260,7 +306,7 @@ s.curve <-
       # like the one we just made above:
       perm.dat <- dat
       set.seed(2018)
-      output$perm.test <-
+      s.curve.mod$perm.test <-
         replicate(
           # number of permutations
           permutations,
@@ -277,123 +323,18 @@ s.curve <-
                 })
             
             # run model for that permutation:
-            curveRunner(f.data = perm.dat,
-                        full.models = FALSE)
+            curveRunner(s.curve.mod,
+                        inc.full.models = FALSE,
+                        inc.tidy.models = FALSE)
           },
           simplify=FALSE)
     } #
     
-    # SIGNIFICANCE RATES ----
-    
-    # Calculate number and percent significant across types:
-    output$n.sig <- sum(output$results$significant)
-    output$prop.sig <- mean(output$results$significant)
-    
-    # Significance rates for permutation test code
-    if(is.numeric(permutations)){
-      
-      # Get proportion significance across all permuted models:
-      output$perm.prop.sig <-
-        sapply(
-          output$perm.test,
-          function(x){mean(x$significant)}
-        )
-      
-      # Mean significance rate across all models:
-      output$perm.prop.sig.mean <-
-        mean(output$perm.prop.sig)
-      
-      # How many are more significant than the main set:
-      output$perm.sig.compare <-
-        output$prop.sig >= output$perm.prop.sig
-      output$perm.sig.compare.mean <-
-        mean(output$perm.sig.compare)
-      
-      # WITHIN SPECIFICATION COMPARISONS ----
-      
-      # Obtain matrix of estimates by specification
-      estimate.matrix <-
-        sapply(
-          output$perm.test,
-          function(x){x$estimate},
-          simplify = "matrix"
-        )
-      
-      # Obtain quantiles of estimate from each speficiation:
-      output$results[c("perm.lower", "perm.median", "perm.upper")] <-
-        t(
-          apply(
-            estimate.matrix,
-            1,
-            quantile,
-            probs = c(.025, .50, .975)
-          ))
-      
-      
-      # Obtain P-value from exact test
-      # (comparing absolute values for two-tailed based on CLT,
-      # so as to make it direction-agnostic.  Could do better, probably).
-      output$results$perm.p.value <-
-        sapply(
-          1:n.formulas,
-          function(n){
-            # What percentage of estimates are at least as extreme
-            # as the obtained one?
-            mean(abs(estimate.matrix[n,]) >=
-                   abs(output$results$estimate[n]))
-          })
-      
-      # Critical value test, boolean:
-      output$results$perm.significant <-
-        output$results$perm.p.value < critical.value
-      
-    }  # End permutation test code
-    
-    # FINAL OUTPUT: ----
-    # extra diagnostic information:
-    output$formulas <- formula.names
-    output$n.formulas <- n.formulas
-    output$permutations <- permutations
-    output$critical.value <- critical.value
-    output$ordering <-
-      data.frame(
-        estimate = order(output$results$estimate),
-        p.value = order(output$results$p.value)
-      )
-    if(is.numeric(permutations)) {
-      output$ordering$perm.p.value <-
-        order(output$results$perm.p.value)
-    }
-    
-    # print summary to screen for easy reading:
-    if(cat.percent){
-      cat(
-        paste0(
-          "Percentage of significant p-values in treatment term", "\n",
-          "across all models is ",
-          round(100*output$prop.sig, 2), "%"))
-    }
-    
-    # Print permutation summary to screen for easy reading:
-    if(cat.percent & is.numeric(permutations)){
-      cat(
-        paste0(
-          "\n\n",
-          "Across ", permutations, " permutations, ",
-          "the main p-curve analysis had more significant\n",
-          "results than ",
-          round(100*output$perm.sig.compare.mean, 2), "% ",
-          "of permuted p-curve sets.\n",
-          "(mean significance rate: ",
-          round(100*output$perm.prop.sig.mean, 2), "%)",
-          "\n"
-        ))
-    }
-    
-    output
+    # FINAL CALCULATIONS ----
+    s.curve.update(s.curve.mod = s.curve.mod, 
+                 perm.pvalues = perm.pvalues)
     
   }
-
 
 
 # curveRunner - processes s-curve objects ---------------------------------
@@ -405,7 +346,7 @@ curveRunner <-
     inc.full.models = NULL,
     perm.index = NULL
   ){
-
+    
     dat <- s.curve.model$dat
     spec.list <- s.curve.model$spec.list
     subsettings <- s.curve.model$subsettings
@@ -421,6 +362,7 @@ curveRunner <-
         s.curve.model$keep.full.models
     }
     
+    
     models.df <-
       lapply(seq_len(nrow(spec.list)), 
              # indexing function
@@ -429,21 +371,28 @@ curveRunner <-
                # Initialize output:
                mod.row <- 
                  data.frame(
+                   specification.no = spec.list$specification.index[ind],
                    model.type = 
-                     paste0(s.curve.model$mod.type.char,
+                     paste0(s.curve.model$mod.type, "-", 
+                            s.curve.model$mod.family, "-",
                             s.curve.model$robust.se),
                    stringsAsFactors = FALSE
                  ) 
                
                mod.row$formulas <-  
-                 spec.list[["formula"]][ind]
+                 as.character(spec.list[["formula"]][ind])
                
                # Initialize model parameters:
                params <- 
                  list(
+                   
+                   # Add in data:
+                   data = dat,
+                   # Add in formulas:
                    formula = spec.list[["formula"]][[ind]]
                  )
-               
+               # Initialize final model report (for duplicate checking):
+               final.model <- c()
                
                weights.name <- spec.list[ind, "weights"]
                subset.name <- spec.list[ind, "subset"]
@@ -451,33 +400,51 @@ curveRunner <-
                # Subsetting setup:
                if (!is.na(subset.name)){
                  # Establish the subset:
-                 sub <- subsettings[[subset.name]]
+                 params$data <- dat[subsettings[[subset.name]],]
                  # note it in the output:
                  mod.row$subset.used <- subset.name
-               } else {
-                 # Just keep everything with this:
-                 sub <- TRUE
-               }
+                 
+                 # Update the final model report:
+                 final.model <- c(final.model, subset.name)
+               } 
                
                
                # Weighting setup:
                if (!is.na(weights.name)){
-                 # Add the weight variable
-                 params$weights <- 
-                   weightings[sub, weights.name]
+                 # Recalculate the weights variable:
+                 if(weights.name != "WEIGHT: NONE"){
+                   new.weight.table <- 
+                     1/prop.table(
+                       table(params$dat$treat_noun,
+                             params$dat$ssi
+                       ), margin = 2)
+                   
+                   params$weights <- 
+                     diag(new.weight.table[
+                       as.character(params$dat$treat_noun),
+                       as.character(params$dat$ssi)
+                       ])
+                 }
                  # note it in the output:
                  mod.row$weights.used <- weights.name
+                 
+                 # Update the final model report:
+                 final.model <- c(final.model, weights.name)
                }
                
-               # Add in data:
-               params$data <- dat[sub,]
+               if(s.curve.model$mod.type == "glm"){
+                 params$family <- s.curve.model$mod.family
+               }
+               
+               FUN <- match.fun(s.curve.model$mod.type)
                
                model.run <- 
-                 do.call(lm, params)
+                 do.call(FUN, params)
                
                # Get out model features:
                model.glance <-
-                   glance(model.run)
+                 glance(model.run)
+               
                
                # Clustering the model:
                if(s.curve.model$cluster) {
@@ -491,7 +458,7 @@ curveRunner <-
                  
                  model.tidy <-
                    tidy(model.run.cluster)
-                
+                 
                  
                  
                } else if(!is.null(s.curve.model$robust.se)) {
@@ -537,49 +504,331 @@ curveRunner <-
                  }
                
                # Model characteristics
-               mod.row[c("r.squared", "adj.r.squared", "df", "df.residual")] <-
-                model.glance[c("r.squared", "adj.r.squared", "df", "df.residual")]
                
-               # Model N 
-               mod.row["n"] <- mod.row$df + mod.row$df.residual
+               mod.row <- cbind.data.frame(mod.row, model.glance)
                
+               # Model N
+               if(s.curve.model$mod.type == "glm"){
+                 mod.row["n"] <- mod.row$df.null + 1
+               } else { 
+                 mod.row["n"] <- mod.row$df + mod.row$df.residual
+               }
                # Variables indicating estimates for each variable:
-               mod.row[paste0(model.tidy$term, ".est")] <- 
+               mod.row[paste0(model.tidy$term, ".est")] <-
                  as.list(model.tidy$estimate)
-
+               
                # Variables indicating SE's for each included variable:
-               mod.row[paste0(model.tidy$term, ".se")] <- 
+               mod.row[paste0(model.tidy$term, ".se")] <-
                  as.list(model.tidy$std.error)
-
+               
                # Variables indicating p.vals for each included variable:
-               mod.row[paste0(model.tidy$term, ".pval")] <- 
+               mod.row[paste0(model.tidy$term, ".pval")] <-
                  as.list(model.tidy$p.value)
+               
+               # Included variables:
+               final.variables <-
+                 c(model.tidy$term[!is.na(model.tidy$estimate)][-1])
+               
+               # Update the final model report:
+               final.model <- c(final.model, final.variables)
+               
+               mod.row$final.variables <-
+                 list(final.variables)
+               mod.row$final.specification <-
+                 list(final.model)
                
                if(inc.tidy.models) {
                  mod.row$tidy.models <- list(model.tidy)
+                 mod.row$glance.models <- list(model.glance)
                }
                
                if(inc.full.models) {
                  mod.row$full.models <- list(model.run)
                }
+
                
-              mod.row 
+               mod.row 
              }) %>% 
       # Bind it up together as a single data.frame
-             {do.call(bind_rows, .)}
-
+      do.call(what = bind_rows)
+    
+    
+    
+    
+    
+    
+    
     # Mark which permutation this data is:
     if(!is.null(perm.index)){
       models.df$permutation.index <- perm.index
     }
-
-    s.curve.model$results <-
-      models.df
     
-    s.curve.model
-
+    models.df
+    
   }
 
+
+# s.curve.update - Calculates the output from a fitted object ---------------
+
+s.curve.update <- function(s.curve.mod, 
+                         perm.dat = NULL, # For combining permutation data in (if run externally)
+                         perm.pvalues = FALSE # Calculate model-derived p-values
+){
+  
+  if(!is.null(perm.dat)){
+    s.curve.mod$perm.test <- perm.dat
+    s.curve.mod$permutations <- length(perm.dat)
+  }
+  # SIGNIFICANCE RATES ----
+  
+  # Calculate number and percent significant across types:
+  s.curve.mod$n.specifications <- nrow(s.curve.mod$results)
+  s.curve.mod$n.sig <- sum(s.curve.mod$results$significant)
+  s.curve.mod$prop.sig <- mean(s.curve.mod$results$significant)
+  
+  # Calculate mean estimate:
+  s.curve.mod$mean.estimate <- mean(s.curve.mod$results$estimate)
+  # Calculate median estimate:
+  s.curve.mod$median.estimate <- median(s.curve.mod$results$estimate)
+  
+  
+  # PERMUTATION TEST RATES ----
+  
+  # Significance rates for permutation test code
+  if(!is.null(s.curve.mod$perm.test)){
+    
+    # Get proportion significance across all permuted models:
+    s.curve.mod$perm.prop.sig <-
+      vapply(
+        s.curve.mod$perm.test,
+        function(x){mean(x$significant)},
+        1
+      )
+    
+    
+    # Mean significance rate across all permutations:
+    s.curve.mod$perm.prop.sig.mean <-
+      mean(s.curve.mod$perm.prop.sig)
+    s.curve.mod$perm.prop.sig.median <-
+      median(s.curve.mod$perm.prop.sig)
+    
+    
+    # How many are more significant than the main set:
+    s.curve.mod$perm.sig.compare <-
+      s.curve.mod$prop.sig >= s.curve.mod$perm.prop.sig
+    s.curve.mod$perm.sig.compare.proportion <-
+      mean(s.curve.mod$perm.sig.compare)
+    
+    
+    # MEDIAN EFFECT SIZE COMPARISONS ----
+    s.curve.mod$perm.median.estimate <-
+      vapply(
+        s.curve.mod$perm.test,
+        function(x){median(x$estimate)},
+        1
+      )
+    
+    # Mean significance rate across all models:
+    s.curve.mod$perm.median.estimate.mean <-
+      mean(s.curve.mod$perm.median.estimate)
+    s.curve.mod$perm.median.estimate.median <-
+      median(s.curve.mod$perm.median.estimate)
+    
+    s.curve.mod$perm.median.compare <-
+      s.curve.mod$median.estimate >= s.curve.mod$perm.median.estimate
+    s.curve.mod$perm.median.compare.proportion <-
+      mean(s.curve.mod$perm.median.compare)
+    
+    # WITHIN SPECIFICATION COMPARISONS (still needs work)----
+    
+    if(perm.pvalues){
+      # Obtain matrix of estimates by specification
+      s.curve.mod$estimate.matrix <-
+        sapply(
+          s.curve.mod$perm.test,
+          function(x){x$estimate},
+          simplify = "matrix"
+        )
+      
+      perm.quantile.names <-
+        c("perm.lower", "perm.median", "perm.upper")
+      
+      perm.quantiles <-
+        c(s.curve.mod$alpha/2, .5, 1-(s.curve.mod$alpha/2))
+      
+      if(!is.null(s.curve.mod$tail)){
+        if(s.curve$tail == "upper"){
+          perm.quantile.names <-
+            c("perm.median", "perm.upper")
+          perm.quantiles <-
+            c(.5, 1-s.curve.mod$alpha)
+        } else {
+          perm.quantile.names <-
+            c("perm.lower", "perm.median")
+          perm.quantiles <-
+            c(s.curve.mod$alpha, .5)
+        }
+      }
+      
+      
+      
+      # Obtain quantiles of estimate from each speficiation:
+      s.curve.mod$results[perm.quantile.names] <-
+        t(
+          apply(
+            s.curve.mod$estimate.matrix,
+            1,
+            quantile,
+            probs = perm.quantiles
+          ))
+      
+      
+      # Obtain P-value from exact test
+      # (comparing absolute values for two-tailed based on CLT,
+      # so as to make it direction-agnostic.  Could do better, probably).
+      if(is.null(s.curve.mod$tail)){
+        
+        s.curve.mod$results$perm.p.value <-
+          vapply(
+            seq_len(nrow(s.curve.mod$results)),
+            function(n){
+              # What percentage of estimates are at least as extreme
+              # as the obtained one?
+              mean(
+                abs(s.curve.mod$estimate.matrix[n,]) >=
+                  abs(s.curve.mod$results$estimate[n])
+              )
+            }, 1)
+        
+      } 
+      
+      if (s.curve.mod$tail == "upper") {
+        
+        s.curve.mod$results$perm.p.value <-
+          vapply(
+            seq_len(nrow(s.curve.mod$results)),
+            function(n){
+              # What percentage of estimates are at least as positive
+              # as the obtained one?
+              mean(
+                s.curve.mod$estimate.matrix[n,] >=
+                  s.curve.mod$results$estimate[n]
+              )
+            }, 1)
+        
+      } 
+      
+      if (s.curve.mod$tail == "lower") {
+        
+        s.curve.mod$results$perm.p.value <-
+          vapply(
+            seq_len(nrow(s.curve.mod$results)),
+            function(n){
+              # What percentage of estimates are at least as negative/low
+              # as the obtained one?
+              mean(
+                s.curve.mod$estimate.matrix[n,] <=
+                  s.curve.mod$results$estimate[n]
+              )
+            }, 1)
+        
+      }
+      
+      # Critical value test, boolean:
+      s.curve.mod$results$perm.significant <-
+        s.curve.mod$results$perm.p.value <= s.curve.mod$alpha
+      
+    }
+  }  # End permutation test code
+  
+  # FINAL OUTPUT: ----
+  # extra diagnostic information:
+  
+  s.curve.mod$ordering <-
+    data.frame(
+      estimate = order(s.curve.mod$results$estimate),
+      p.value = order(s.curve.mod$results$p.value),
+      AIC = order(s.curve.mod$results$AIC),
+      BIC = order(s.curve.mod$results$BIC)
+    )
+  
+  if(!is.null(s.curve.mod$perm.test) && perm.pvalues) {
+    s.curve.mod$ordering$perm.p.value <-
+      order(s.curve.mod$results$perm.p.value)
+  }
+  
+  # print summary to screen for easy reading:
+  s.curve.mod$report <-
+    paste0(
+      "Percentage of significant p-values in treatment term", "\n",
+      "across all models is ",
+      round(100*s.curve.mod$prop.sig, 2), "% (", 
+      s.curve.mod$n.sig, " of ", s.curve.mod$n.specifications, " specifications)\n")  
+  
+  cat(s.curve.mod$report)
+  
+  
+  # Print permutation summary to screen for easy reading:
+  if(!is.null(s.curve.mod$perm.test)){
+    s.curve.mod$perm.report.significance  <-   paste0(
+      "\n",
+      "Across ", s.curve.mod$permutations, " permutations, ",
+      "the main p-curve analysis had the same or more significant\n",
+      "results than ",
+      round(100*s.curve.mod$perm.sig.compare.proportion, 2), "% ",
+      "of permuted p-curve sets.\n",
+      "Mean significance rate: ",
+      round(100*s.curve.mod$perm.prop.sig.mean, 2), "%\n",
+      "Median significance rate:",
+      round(100*s.curve.mod$perm.prop.sig.median, 2), "%\n"
+    )
+    
+    s.curve.mod$perm.report.median  <-   paste0(
+      "\n",
+      "Across ", s.curve.mod$permutations, " permutations, ",
+      "the main p-curve analysis had an equivalent or larger median \n",
+      "effect size than ",
+      round(100*s.curve.mod$perm.median.compare.proportion, 2), "% ",
+      "of permuted p-curve sets.\n",
+      "Mean of median estimate: ",
+      round(s.curve.mod$perm.median.estimate.mean, 3), "\n",
+      "Median of median estimates: ",
+      round(s.curve.mod$perm.median.estimate.median, 3), "\n"
+    )
+    
+    cat(s.curve.mod$perm.report.significance)
+    cat(s.curve.mod$perm.report.median)
+    
+  }
+  
+  s.curve.mod
+  
+}
+
+# Subsetting tool ---------------------------------------------------------
+
+
+s.curve.subset <- function(s.curve.mod, ...){
+  # Filters a subset of the data based on criteria
+  s.curve.mod$results <-
+    eval(substitute(
+      s.curve.mod$results %>% 
+        filter(...)))
+  
+  s.curve.mod$spec.list <- 
+    s.curve.mod$spec.list %>% 
+    filter(specification.index %in% 
+             s.curve.mod$results$specification.no)
+  
+  
+  if(!is.null(s.curve.mod$perm.test)){
+    s.curve.mod$perm.test <-
+      eval(substitute(
+        s.curve.mod$perm.test %>% 
+          map(~.x %>% filter(...))))
+  }
+  s.curve.update(s.curve.mod)
+}
 
 
 # Plotting tool for s.curve output ----------------------------------------
@@ -588,45 +837,184 @@ curveRunner <-
 
 s.curve.plot <-
   function(
-    data,
+    s.curve.mod,
+    what = "estimate",
     title = NULL,
     plot.order = NULL,
-    decreasing = TRUE
+    decreasing = TRUE,
+    show.sig = TRUE,
+    include.permutations = TRUE,
+    pointsize = 2,
+    x.alt = NULL,
+    plot.theme = NULL
   ){
+    
+    order.name <- setNames(c("Estimated Unstandardized Effect Size", 
+                             "P-value", "Permutation Test Calculated P-value", "AIC", "BIC"),
+                           c("estimate", "p.value", "perm.p.value", "AIC", "BIC"))
+    
+    # Create a new plotting environment
+    env <- new.env(parent = globalenv())
+    
+    env$what <- what
+    env$order.name <- order.name
+    env$title <- title
+    env$plot.order <- plot.order
+    env$decreasing <- decreasing
+    env$show.sig <- show.sig
+    env$include.permutations <- include.permutations
+    env$tail <- s.curve.mod$tail
+    env$pointsize <- pointsize
+    env$plot.theme <- plot.theme
     
     # Sort by the provided metric:
     if(!is.null(plot.order)){
-      new.order <- order(data$results[plot.order], decreasing = decreasing)
-      plot.dat <-  data$results[new.order,]
+      new.order <- order(s.curve.mod$results[plot.order], decreasing = decreasing)
+      
+      env$plot.dat <-  s.curve.mod$results[new.order,]
+      env$x.label <- paste0("Specification, Sorted by ", order.name[plot.order])
     } else {
-      plot.dat <- data$results
+      env$plot.dat <- s.curve.mod$results
+      env$x.label <- "Specification Number"
+    }
+    
+    if(is.null(x.alt) | all(is.na(x.alt))){
+    env$plot.dat$xval <- seq_len(nrow(env$plot.dat))
+    } else { 
+    env$plot.dat$xval <- x.alt
+    }
+    
+    env$y.label <- order.name[what]
+    
+    env$sig.label <- 
+      paste0("Significant\nat p < ", substring(s.curve.mod$alpha, 2))
+    
+    if(s.curve.mod$tail %in% c("upper", "lower")){
+      env$sig.label <- 
+        paste0(env$sig.label, ",\n", "one-tailed")
+    }
+    
+    if (!is.null(s.curve.mod$permutations) & what == "estimate" & include.permutations){
+      env$CI.bound <- ifelse(is.null(s.curve.mod$tail), 
+                             paste0(1 - s.curve.mod$alpha, "% CI"),
+                             paste0(1 - 2*s.curve.mod$alpha, "% CI")
+      )
+    }
+    
+    if (!is.null(plot.theme)){
+      theme_choice <- 
+        match.fun(paste0("theme_", plot.theme))
+    } else {
+      theme_choice <- theme_minimal
     }
     
     # plot
     newplot <-
-      ggplot(plot.dat,
-             aes(x=seq_along(estimate),
-                 y=estimate)) +
-      geom_point(aes(color=significant)) +
-      scale_color_manual(
-        values = c("black", "red"),
-        name = paste0("Significant\nat p = ", data$critical.value)
-      ) +
-      theme_bw() +
-      ylab(plot.order) +
-      xlab(paste0("Specification # (sorted by ", plot.order, ")")) +
-      ggtitle(title)
-    if (!is.null(data$permutations)){
-      newplot <-
-        newplot +
-        geom_line(aes(y=perm.lower, linetype = "95 % CI")) +
-        geom_line(aes(y=perm.upper, linetype = "95 % CI")) +
-        geom_line(aes(y=perm.median, linetype = "Median")) +
-        scale_linetype_manual(
-          name = "Permutation\nTest",
-          values = c("Median" = "solid", "95 % CI" = "dotted")
-        )}
-    newplot
+      with(env, {
+        
+        plot.dat$yval <- plot.dat[[what]]
+        
+        newplot <- 
+          ggplot(plot.dat,
+                 aes(x=xval,
+                     y=yval)) + 
+          theme_choice() + 
+          ylab(y.label) +
+          xlab(x.label) +
+          ggtitle(title)
+        
+        if(show.sig){
+          newplot <- newplot + 
+            geom_point(aes(color=significant), size = pointsize) +
+            scale_color_manual(
+              values = c(`FALSE` = "black", `TRUE` = "red"),
+              name = sig.label)
+        } else {
+          newplot <- newplot + geom_point(size = pointsize)
+        }
+        
+        if ("perm.median" %in% names(plot.dat) && 
+            what == "estimate" && 
+            include.permutations){
+          
+          newplot <-
+            newplot +
+            geom_line(aes(y=perm.median, linetype = "Median")) +
+            scale_linetype_manual(
+              name = "Permutation\nTest",
+              values = c("Median" = "solid", CI.bound = "dotted"))
+            
+            if(!is.na(tail) & tail == "upper"){  
+              newplot <-
+                newplot + 
+                geom_line(aes(y=perm.upper, linetype = CI.bound))
+            }    
+          
+          if(!is.na(tail) & tail == "lower"){  
+            newplot <-
+              newplot + 
+              geom_line(aes(y=perm.lower, linetype = CI.bound))
+            
+          }
+        }
+        newplot
+      })
+    newplot 
+  }
+
+
+
+
+# Density Plots -----------------------------------------------------------
+
+
+
+s.curve.sig.density.plot <- 
+  function(
+    s.curve.mod, 
+    subtitle.add = NULL
+  ){
+    env <- new.env(parent = globalenv())
+    
+    env$perm.prop.sig <- s.curve.mod$perm.prop.sig
+    env$prop.sig <- s.curve.mod$prop.sig
+    env$subtitle.add <- subtitle.add
+    
+      with(env, {
+        ggplot(mapping = aes(x = perm.prop.sig)) + 
+          stat_density(geom = "line") +
+          stat_density(geom = "area", fill = "blue", alpha = .5) + 
+          geom_vline(xintercept = prop.sig, color = "red", linetype = 4) + 
+          theme_minimal() + 
+          xlab("Proportion of Significant Models") + 
+          ggtitle(label = "Density of Simulated-Null Significance Rates (Permutation Test)",
+                  subtitle = paste0(subtitle.add, " (Actual Data Significance Rate ", 
+                                    round(100*prop.sig, 1), "%)")
+          )})
+  }
+
+s.curve.est.density.plot <- 
+  function(
+    s.curve.mod, 
+    subtitle.add = NULL
+    ){
+    env <- new.env(parent = globalenv())
+    
+    env$median.estimate <- s.curve.mod$median.estimate
+    env$perm.median.estimate <- s.curve.mod$perm.median.estimate
+    env$subtitle.add <- subtitle.add
+  
+    with(env, {
+      ggplot(mapping = aes(x = perm.median.estimate)) + 
+        stat_density(geom = "line") +
+        stat_density(geom = "area", fill = "green", alpha = .4) + 
+        geom_vline(xintercept = median.estimate, color = "red", linetype = 4) + 
+        theme_minimal() + 
+        xlab("Median Effect Size") + 
+        ggtitle(label = "Density of Simulated-Null Median Effect Sizes (Permutation Test)",
+                subtitle = paste0(subtitle.add, " (Actual Data Median Effect Size ", round(median.estimate, 3), ")") 
+        )
+      })
   }
 
 
@@ -636,32 +1024,27 @@ s.curve.plot <-
 
 
 
-s.curve.table <- function(scurve, ordering = NULL){
+s.curve.table <- function(s.curve.mod, ordering = NULL){
   
   table.displaylist <-
-    if(is.null(scurve$permutations)){
-      c("formulas", "estimate", "std.error", "p.value")
-    } else {
-      c("formulas", "estimate", "std.error", "p.value",
-        "perm.lower", "perm.median", "perm.upper")
-    }
+      intersect(
+        c("formulas", "subset.used", "weights.used", 
+          "estimate", "std.error", "p.value",
+          "perm.lower", "perm.median", "perm.upper"),
+        names(s.curve.mod$results)
+        )
+
   
-  if(!is.na(scurve$subsettings)){
-    table.displaylist <-
-      c("subset.used", table.displaylist)
-  }
+  order.touse <- 
+    if(!is.null(ordering)){
+      order(s.curve.mod$results[[ordering]], decreasing = TRUE)
+    } else { TRUE }
   
-  if(!is.na(scurve$weightings)){
-    table.displaylist <-
-      c("weights.used", table.displaylist)
-  }
+  s.table <- 
+    data.frame(model = 1:nrow(s.curve.mod$results))
   
-  s.table <- data.frame(model = 1:scurve$n.specifications)
   s.table[table.displaylist] <-
-    scurve$results[
-      # order(scurve$results[[ordering]], decreasing = TRUE),
-      table.displaylist
-      ]
-  
+    s.curve.mod$results[order.touse, table.displaylist]
+
   s.table
 }

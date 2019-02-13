@@ -40,7 +40,7 @@ construct.all <- function(..., cycle.order = NULL){
 }
 
 
-nameslike <- function(data, regexp, case = TRUE){
+nameslike <- function(data, regexp, case = FALSE){
   # shortcut for pulling out similarly named variables--returns all vars that have
   # a particular string or regular expression (really just a shortcut to save
   # typing)

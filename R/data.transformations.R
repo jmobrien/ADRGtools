@@ -8,7 +8,7 @@ zScore  <- function(x){
 
 
 zScoreLong <- function(data, x, group){
-  # does z-scoring by group for L2 variables 
+  # does z-scoring by group for L2 variables, where they are repeated across rows in a dataset
   if(any(eval(substitute(aggregate(x ~ group, data = data, FUN = var, na.rm=T)))[[2]] != 0))
     stop("Varable is not equal within some groups")
   vals <- eval(substitute(aggregate(x ~ group, data = data, FUN = unique)))
@@ -16,6 +16,7 @@ zScoreLong <- function(data, x, group){
   vals[match(eval(substitute(data$group)), vals[[1]]), 3]
 }
 
+# Does within-group zscoring:
 zScoreGroup <- function(data, x, group){
   eval(substitute(ave(data$x, as.factor(group), zScore)))
 }
@@ -24,14 +25,24 @@ zScoreGroup <- function(data, x, group){
 
 range0to1 <- 
   function(
-    x, # variable
+    x, # variable that defines the range that will be mapped to [0,1]
     min=NULL, # value to be mapped to 0, will use variable min if not specified
-    max=NULL  # value to be mapped to 1, will use variable max if not specified
+    max=NULL,  # value to be mapped to 1, will use variable max if not specified
+    newdata = NULL # Calculate a different variable on the range of the specified one
     ){
   #function for making the range of a function 0 to 1 while maintaining scaling
-  if(is.null(min)){min <- min(x, na.rm=T)}
-  if(is.null(max)){max <- max(x, na.rm=T)}
-  (x-min)/(max-min)
+  if(is.null(min)){
+    min <- min(x, na.rm=T)
+    cat(paste0("\nObserved minimum value is ", min, "\n\n"))
+    }
+  if(is.null(max)){max <- max(x, na.rm=T)
+  cat(paste0("\nObserved maximum value is ", max, "\n\n"))
+  }
+  if(!is.null(newdata)){  
+    (newdata-min)/(max-min)
+  } else {
+    (x-min)/(max-min)
+  }  
 }  
 
 
@@ -76,22 +87,6 @@ OutRemove <-
   }
 
 
-# GroupCenter - centers data at mean values of groups ---------------------
-
-
-GroupCenter <- 
-# Group centering data- give data and grouping variable
-  function(
-    variable, # Variable to be group-centered/de-meaned
-    grouping, # grouping variable
-    na.rm=TRUE){
-    g.mean <- 
-      ave(variable, 
-          as.factor(grouping),
-          FUN = function(x){mean(x, na.rm=na.rm)}
-      )
-    variable - g.mean
-  }
 
 
 ZandTrim <- 

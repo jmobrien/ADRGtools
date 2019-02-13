@@ -101,7 +101,7 @@ SRETextract <- function(dat,
   
   #noting any discrepancies:
   length.check$problemflag <-
-    vapply(seq_along(nrow(length.check)), function(i){
+    vapply(seq_len(nrow(length.check)), function(i){
       ifelse(
         any(is.na(unlist(length.check[i,])) | 
               all(unlist(length.check[i,]) == 52) | 
@@ -288,12 +288,12 @@ SRETextract <- function(dat,
   
   # Error checking:
   if(any(length.check$problemflag == 1)){
-    errors <- which(length.check$problemflag)
+    errors <- which(length.check$problemflag == 1)
     dat$sret.problemflag[errors] <- 1
     dat$sret.problemdescrip[errors] <-
-      ifelse(dat$problemdescrip[errors] == "",
+      ifelse(dat$sret.problemdescrip[errors] == "",
              "error", 
-             paste0(dat$problemdescrip[errors], "; ", "error")
+             paste0(dat$sret.problemdescrip[errors], "; ", "error")
       )
   }
   
@@ -303,6 +303,7 @@ SRETextract <- function(dat,
   if(!is.null(raw.out.path)){
     
     output.vars <- c("rawmatchID", output.vars)
+    sret.output.vars <- c("sret.rawmatchID", sret.output.vars)
     
     dat$sret.rawmatchID <- 
       paste0(round(as.numeric(Sys.time()), 0), seq_len(nrow(dat)))

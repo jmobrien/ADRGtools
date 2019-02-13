@@ -124,7 +124,7 @@ merge.with.order <-
 
 EBmeans <- 
   function(
-    data, 
+    dat, 
     variable, 
     grouping){
     # This function calculates empirical Bayesian means in a way that eliminates the 
@@ -132,7 +132,7 @@ EBmeans <-
     
     # Run model:
     require(lme4)
-    mod <- eval(substitute(lmer(variable ~ (1 | grouping), data)))
+    mod <- eval(substitute(lmer(variable ~ (1 | grouping), dat)))
     # Extract coefficients:
   coefs <- data.frame(
     grouping = rownames(coef(mod)[[1]]),
@@ -142,8 +142,8 @@ EBmeans <-
   # Mix it in with the data:
   coefs.full <- merge(
     data.frame(
-      index = 1:nrow(data),
-      grouping = eval(substitute(data$grouping)), stringsAsFactors = FALSE),
+      index = 1:nrow(dat),
+      grouping = eval(substitute(dat$grouping)), stringsAsFactors = FALSE),
     coefs,
     all.x = TRUE
   )
@@ -151,6 +151,73 @@ EBmeans <-
   coefs.full[["coefs"]][order(coefs.full["index"])]
 }
 
+
+EBcenter <- 
+  function(
+    dat, 
+    variable, 
+    grouping){
+    # This function calculates empirical Bayesian means and centers the data against it, 
+    # eliminating the need for a multistep process in code.
+    
+    # Run model:
+    require(lme4)
+    mod <- eval(substitute(lmer(variable ~ (1 | grouping), dat)))
+    # Extract coefficients:
+  coefs <- data.frame(
+    grouping = rownames(coef(mod)[[1]]),
+    coefs = coef(mod)[[1]]$`(Intercept)`,
+    stringsAsFactors = FALSE
+  )
+  # Mix it in with the data:
+  coefs.full <- merge(
+    data.frame(
+      index = 1:nrow(dat),
+      grouping = eval(substitute(dat$grouping)), stringsAsFactors = FALSE),
+    coefs,
+    all.x = TRUE
+  )
+  #Output the EB mean-centered values (variable - EB mean):
+  eval(substitute(dat$variable)) - 
+    coefs.full[["coefs"]][order(coefs.full["index"])]
+}
+
+
+# GroupMean - writes mean value by group back to data ---------------------
+GroupMeans <- 
+# Group centering data- give data and grouping variable
+  function(
+    dat, # a dataframe
+    variable, # Variable to be group-centered/de-meaned
+    grouping, # grouping variable
+    na.rm=TRUE # na.rm parameter to be passed
+    ){
+      eval(substitute(
+      ave(dat$variable, 
+          as.factor(dat$grouping),
+          FUN = function(x){mean(x, na.rm=na.rm)}
+      )))
+  }
+
+# GroupCenter - centers data at mean values of groups ---------------------
+
+
+GroupCenter <- 
+# Group centering data- give data and grouping variable
+  function(
+    dat, # a dataframe
+    variable, # Variable to be group-centered/de-meaned
+    grouping, # grouping variable
+    na.rm=TRUE # na.rm parameter to be passed
+    ){
+    g.mean <- 
+      eval(substitute(
+      ave(dat$variable, 
+          as.factor(dat$grouping),
+          FUN = function(x){mean(x, na.rm=na.rm)}
+      )))
+    eval(substitute(dat$variable)) - g.mean
+  }
 
 
 # ControlFor - construct residual variables  --------

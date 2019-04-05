@@ -823,12 +823,15 @@ s.curve.subset <- function(s.curve.mod, ...){
   
   if(!is.null(s.curve.mod$perm.test)){
     s.curve.mod$perm.test <-
-      eval(substitute(
         s.curve.mod$perm.test %>% 
-          map(~.x %>% filter(...))))
+          map(~.x %>% 
+                filter(specification.no %in% 
+                         s.curve.mod$results$specification.no)
+          )
   }
   s.curve.update(s.curve.mod)
 }
+
 
 
 # Plotting tool for s.curve output ----------------------------------------
@@ -902,10 +905,10 @@ s.curve.plot <-
     }
     
     if (!is.null(plot.theme)){
-      theme_choice <- 
+      env$theme_choice <- 
         match.fun(paste0("theme_", plot.theme))
     } else {
-      theme_choice <- theme_minimal
+      env$theme_choice <- theme_minimal
     }
     
     # plot

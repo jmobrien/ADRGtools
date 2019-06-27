@@ -1,3 +1,27 @@
+# Random.table <- 
+#   as.data.frame(
+#     expand.grid(
+#       c("Construct 1 (reliability)", "Measure 1 (reliability)", "Measure 2 (reliability)", "Measure 3 (reliability)"),
+#       c("Intervention (n)", "Control (n)"),
+#       "Score (95% CI)",
+#       "Score (95% CI)",
+#       "Score (95% CI) Pretest/posttest correlation Statistical test",
+#       "Time x Group effect size (95% CI) orregression of post-test scores on group\nand pretest scores"
+#     ))
+# 
+# names(Random.table) <- c("Measure", "Group", "Pretest", "Posttest", "Difference", "Training Benefit")
+# 
+# kable(Random.table)
+# 
+# sink("~/Desktop/RCT.table.html")
+# print(
+#   xtable(Random.table, format = "html", caption = "Table 6.  A Model for Reporting Intervention Results"),
+#   type = "html"
+# )
+# sink()
+# 
+
+
 # # util.R
 # 
 # # Collection of useful stuff.

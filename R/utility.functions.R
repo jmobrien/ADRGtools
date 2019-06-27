@@ -25,7 +25,7 @@ construct.all <- function(..., cycle.order = NULL){
     elemgrid <- expand.grid(elems, stringsAsFactors = FALSE)[order(cycle.order)]
     
     vals <-
-      apply(elemgrid, 1, paste, collapse = "")
+      apply(elemgrid, 1, paste0, collapse = "")
   } else {
   
   vals <- 
@@ -44,7 +44,7 @@ nameslike <- function(data, regexp, case = FALSE){
   # shortcut for pulling out similarly named variables--returns all vars that have
   # a particular string or regular expression (really just a shortcut to save
   # typing)
-  grep(regexp, names(data), value=TRUE, ignore.case = !case)
+  grep(regexp, names(data), perl = TRUE, value=TRUE, ignore.case = !case)
 }
 
 

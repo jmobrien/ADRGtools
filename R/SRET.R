@@ -1,11 +1,13 @@
-
+# TODO: add in switch for raw summaries.
+# TODO: 
 
 # SRETextract - tool for pulling out JS SRET data  ------------------------
 
 SRETextract <- function(dat,
                         alt.names = NULL,
                         suffix = NULL,
-                        raw.out.path = NULL
+                        raw.out.path = NULL,
+                        raw.shape = "wide"
 ){
   # This function should be written back to the full data that you have, like:
   # mydata <- SRETextract(mydata)
@@ -302,11 +304,21 @@ SRETextract <- function(dat,
   
   if(!is.null(raw.out.path)){
     
+    # Adds the ID variable:
     output.vars <- c("rawmatchID", output.vars)
+    
     sret.output.vars <- c("sret.rawmatchID", sret.output.vars)
     
     dat$sret.rawmatchID <- 
-      paste0(round(as.numeric(Sys.time()), 0), seq_len(nrow(dat)))
+      paste0(
+        round(as.numeric(Sys.time()), 0), # Start with the current system time 
+        # add a random number from the lowest place value of the available numbers up to the next place value (so if 550, from 100:999)
+        sample(
+          x = 10^floor(log10(nrow(dat))):(10^(floor(log10(nrow(dat)))+1)-1), 
+          size = nrow(dat),
+          replace = FALSE)
+             )
+    
     
     
     raw.vars <-
@@ -323,9 +335,10 @@ SRETextract <- function(dat,
                   rep(NA, length(raw.vars))
                   
                 } else {
+                  
                   x.sort <- 
                     x[order(1-x$ispositive, x$words), 
-                      c("words", "agree", "time", "word.position", 
+                      c("words", "ispositive", "agree", "time", "word.position", 
                         "RTsub200", "RToutlier")]
                   
                   setNames(
@@ -337,7 +350,7 @@ SRETextract <- function(dat,
                     # Give them the right names, dropping any words if they don't 
                     # have them
                     construct.all(x$words, ".",
-                                  c("agree", "time.ms", "order",
+                                  c("positive", "agree", "time.ms", "order",
                                     "RTsub200", "RToutlier"))
                   ) # End SetNames
                   
@@ -350,8 +363,44 @@ SRETextract <- function(dat,
         cbind(dat[sret.output.vars], rawdat),
         c(output.vars, names(rawdat))
       )
+    
+    # Sort to match the original data:
+    rawdat <- rawdat[match(rawdat$rawmatchID, dat$sret.rawmatchID),]
 
-    if(raw.out.path == "HERE"){
+    
+    if(raw.shape %in% c("long", "LONG")){
+      rawdat$index <- seq_len(nrow(rawdat))
+      rawdat <-
+        reshape(rawdat,
+                direction = "long",
+                timevar = "word",
+                idvar = "rawmatchID",
+                varying = list(
+                  paste0(wordlist, ".order"),
+                  paste0(wordlist, ".positive"),
+                  paste0(wordlist, ".agree"),
+                  paste0(wordlist, ".time.ms"),
+                  paste0(wordlist, ".RTsub200"),
+                  paste0(wordlist, ".RToutlier")
+                ), 
+                v.names = c(
+                  "order",
+                  "positive",
+                  "agree", 
+                  "time.ms", 
+                  "RTsub200", 
+                  "RToutlier")
+                , times = wordlist
+        )
+      
+      rawdat$problemflag <- ifelse(is.na(rawdat$RTendorsepos) & is.na(rawdat$RTendorseneg), NA, rawdat$problemflag)
+      rawdat$word <- ifelse(is.na(rawdat$RTendorsepos) & is.na(rawdat$RTendorseneg), NA, rawdat$word)
+      rawdat <- rawdat[order(rawdat$index, rawdat$order),]
+      rawdat$index <- NULL
+      
+    }
+
+    if(raw.out.path %in% c("HERE", "here")){
       message("outputting raw data ONLY (with summaries)")
       return(rawdat)
     } else {

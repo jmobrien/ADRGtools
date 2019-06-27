@@ -261,7 +261,13 @@ s.curve <-
     duplicates <- 
       which(
         duplicated(
-          lapply(s.curve.mod$results$final.specification, sort)
+          lapply(s.curve.mod$results$final.specification, 
+                 function(x){
+                   str_split(x, ":") %>% 
+                     lapply(sort) %>% 
+                     vapply(function(x){paste0(x, collapse = ":")}, FUN.VALUE = "char") %>% 
+                     sort
+                 })
         ))
     
     s.curve.mod$has.duplicates <- FALSE

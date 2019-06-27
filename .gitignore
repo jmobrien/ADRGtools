@@ -1,6 +1,4 @@
-packrat/lib*/
 .Rproj.user
-.Rbuildignore
 .Rhistory
-.Rprofile
 .RData
+.Ruserdata

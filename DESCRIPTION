@@ -1,13 +1,10 @@
-Package: ADRGtools
+Package: PsycMisc
 Type: Package
-Title: Various Useful ADRG Functions
+Title: Miscellaneous useful functions for data wrangling and analysis
 Version: 0.1.0
 Author: Joseph O'Brien, and eventually others
 Maintainer: Joseph O'Brien <joseph.obrien@utexas.edu>
-Description: We are collecting various functions that people write,
-    or that were in the markdown styleguide, so that we don't have to
-    copy and paste them in everything we write.  All users should feel free to add
-    useful things as they are created, or editing things to add features, whatever.
-License: GPL = 2.0, I guess
+Description: This contains all the various functions I've written for managing data and various tasks within a psych laboratory.  Much of it serves for variable creation and data processing of various forms, but there are currently some larger toolkits as well, such as one that constructs, runs, and plots specification curves (which will likely eventually be spun off into its own package.), and some code to check for problematic reportages in open-ended text responses.
+License: GPL = 2.0
 Encoding: UTF-8
 LazyData: true

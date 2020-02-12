@@ -7,7 +7,8 @@ SRETextract <- function(dat,
                         alt.names = NULL,
                         suffix = NULL,
                         raw.out.path = NULL,
-                        raw.shape = "wide"
+                        raw.shape = "wide",
+                        raw.dropmissing = TRUE # if FALSE, keep the extra rows for super-easy merging.  TRUE drops missing cases and does not save those ID's in main data
 ){
   # This function should be written back to the full data that you have, like:
   # mydata <- SRETextract(mydata)
@@ -16,7 +17,8 @@ SRETextract <- function(dat,
   # diagnostics.
   
   require(stringr)
-  
+
+  # If variable names not given, uses standard names:  
   if(is.null(alt.names)){
     alt.names <- 
       c(SRET.words = "SRET.words", 
@@ -24,6 +26,7 @@ SRETextract <- function(dat,
         SRET.time  = "SRET.time")
   } 
   
+  # throws error if all the given/default names aren't present:
   if(!all(c("SRET.words", "SRET.keys", "SRET.time") %in% 
           names(alt.names))){
     stop("names are wrong")
@@ -32,6 +35,7 @@ SRETextract <- function(dat,
   
   # Setup: wordlists --------------------------------------------------------
   
+  # Complete word-list
   wordlist <- 
     c("Funny", "Happy", "Terrible", "Angry", "Ashamed", "Free", 
       "Sorry", "Hateful", "Kind", "Stupid", "Naughty", "Helpful", 
@@ -43,6 +47,7 @@ SRETextract <- function(dat,
       "Great", "Lost", "Guilty", "Proud", "Lonely", "Mad", 
       "Wicked", "Best", "Glad", "Wonderful")
   
+  # Positive words
   wordlist.positive <- 
     c("Happy", "Fun", "Brilliant", "Cool", "Good", "Glad", 
       "Loved", "Friendly", "Wonderful",  "Pleased", "Helpful","Proud", 
@@ -50,6 +55,7 @@ SRETextract <- function(dat,
       "Free", "Funny", "Kind", "Playful",   "Great", "Excellent", 
       "Awesome", "Nice")
   
+  # Negative words
   wordlist.negative <-
     c("Terrible", "Angry", "Ashamed", "Sorry", "Hateful", "Stupid", 
       "Naughty", "Worried", "Horrible", "Bad", "Depressed", "Nasty", 
@@ -57,9 +63,10 @@ SRETextract <- function(dat,
       "Unhappy", "Alone", "Unwanted", "Lost", "Guilty", "Lonely", 
       "Mad", "Wicked")
   
-  # make reference data frame:
+  # Make reference data frame for positive/negative words:
   wordlist.ispositive <- ifelse(wordlist %in% wordlist.positive, 1, 0)
   
+  # Data frame:
   wordlist.reference <- 
     data.frame(
       wordlist,
@@ -336,6 +343,7 @@ SRETextract <- function(dat,
                   
                 } else {
                   
+                  # Sorts each case first by valence, then alphabetically:
                   x.sort <- 
                     x[order(1-x$ispositive, x$words), 
                       c("words", "ispositive", "agree", "time", "word.position", 
@@ -349,7 +357,7 @@ SRETextract <- function(dat,
                     ,
                     # Give them the right names, dropping any words if they don't 
                     # have them
-                    construct.all(x$words, ".",
+                    construct.all(x.sort$words, ".",
                                   c("positive", "agree", "time.ms", "order",
                                     "RTsub200", "RToutlier"))
                   ) # End SetNames
@@ -399,11 +407,21 @@ SRETextract <- function(dat,
       rawdat$index <- NULL
       
     }
-
+    
+    # Drop the extra rawmatchID's unless requested to keep them
+    if(raw.dropmissing){
+      # Drop the ID's from missing cases:
+      dat$sret.rawmatchID[is.na(dat[alt.names["SRET.keys"]])] <- NA
+      # Filter the raw data to contain only the remaining ID's
+      rawdat <- rawdat[rawdat$rawmatchID %in% dat$sret.rawmatchID,]
+    }
+    
+    # Outputting to console:
     if(raw.out.path %in% c("HERE", "here")){
       message("outputting raw data ONLY (with summaries)")
       return(rawdat)
     } else {
+      # Outputting to file:
       message(paste0("raw data written to ", raw.out.path, 
                      ", outputting summaries to original data frame"))
       write.csv(rawdat, raw.out.path, row.names = FALSE)

@@ -8,6 +8,13 @@ snip <- function(input) {
 }
 
 
+esnip <- function(input){
+  # Excel snip: copies dataframes to the clipboard in form pasteable into excel
+  clip <- pipe("pbcopy", "w")
+  write.table(input, file = clip, sep = "\t", row.names = FALSE)
+  close(clip)
+}
+
 qsnip <- 
 #Quoted snip: copies and pastes in comma separated list, with quotes as needed
   function(input) {

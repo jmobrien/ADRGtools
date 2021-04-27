@@ -35,8 +35,14 @@ csnip <-
     } else {
       paste0("c(", paste(input, collapse =  ", "), ")") 
     }
+    output <- 
+    gsub(x = output, 
+         pattern = "(\\G.{70,}?,)", 
+         replacement = "\\1\n",
+         perl = TRUE)
     cat(print(output), file=pb)
     close(pb)
+    output
   }
 
 fsnip <- 
